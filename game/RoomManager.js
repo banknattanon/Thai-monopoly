@@ -80,6 +80,7 @@ class RoomManager {
         socket.join(roomCode);
 
         socket.emit('room-created', { roomCode, playerId });
+        socket.emit('room-joined', { roomState: this.getRoomStateForClient(newRoom), playerId });
         this.io.to(roomCode).emit('room-update', { players: this.getRoomPlayersForClient(newRoom) });
     }
 
