@@ -6,7 +6,7 @@ import { AVATARS } from '../utils/constants.js';
 export default class LobbyScene extends Phaser.Scene {
     constructor() {
         super({ key: 'LobbyScene' });
-        this.selectedAvatar = 'elephant'; // Default avatar id
+        this.selectedAvatar = 'cat'; // Default avatar id
         this.localPlayerId = null;
         this.isHost = false;
         this.isReady = false;
@@ -52,7 +52,7 @@ export default class LobbyScene extends Phaser.Scene {
             opt.addEventListener('click', () => {
                 avatarOptions.forEach(x => x.classList.remove('selected'));
                 opt.classList.add('selected');
-                this.selectedAvatar = opt.getAttribute('data-avatar') || 'elephant';
+                this.selectedAvatar = opt.getAttribute('data-avatar') || 'cat';
             });
         });
 

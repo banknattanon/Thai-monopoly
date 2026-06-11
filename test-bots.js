@@ -12,10 +12,10 @@ console.log('==================================================\n');
 
 // Avatars and Names for Bots
 const BOT_TEMPLATES = [
-    { name: 'Bot_Chang_Host', avatar: '🐘' },
-    { name: 'Bot_TukTuk', avatar: '🛺' },
-    { name: 'Bot_Noodle', avatar: '🍜' },
-    { name: 'Bot_Diamond', avatar: '💎' }
+    { name: 'Bot_Kitten_Host', avatar: '🐱' },
+    { name: 'Bot_Puppy', avatar: '🐶' },
+    { name: 'Bot_Bunny', avatar: '🐰' },
+    { name: 'Bot_Dino', avatar: '🦖' }
 ];
 
 const clients = [];

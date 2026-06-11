@@ -8,12 +8,12 @@ const PLAYER_COLORS = [
 ];
 
 const AVATARS = [
-    { id: 'elephant', emoji: '🐘', name: 'ช้าง / Elephant' },
-    { id: 'tuktuk',   emoji: '🛺', name: 'ตุ๊กตุ๊ก / Tuk Tuk' },
-    { id: 'noodle',   emoji: '🍜', name: 'ก๋วยเตี๋ยว / Noodle' },
-    { id: 'temple',   emoji: '🏯', name: 'วัด / Temple' },
-    { id: 'diamond',  emoji: '💎', name: 'เพชร / Diamond' },
-    { id: 'mask',     emoji: '🎭', name: 'หน้ากาก / Mask' }
+    { id: 'cat',      emoji: '🐱', name: 'แมวเหมียว / Kitten' },
+    { id: 'dog',      emoji: '🐶', name: 'หมาน้อย / Puppy' },
+    { id: 'rabbit',   emoji: '🐰', name: 'กระต่าย / Bunny' },
+    { id: 'duck',     emoji: '🐥', name: 'เป็ดน้อย / Duckling' },
+    { id: 'milktea',  emoji: '🧋', name: 'ชานมไข่มุก / Milk Tea' },
+    { id: 'dino',     emoji: '🦖', name: 'ไดโนน้อย / Baby Dino' }
 ];
 
 class Player {
