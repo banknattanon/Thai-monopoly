@@ -23,7 +23,8 @@ class SocketManager {
             autoConnect: true,
             reconnection: true,
             reconnectionAttempts: 10,
-            reconnectionDelay: 1000
+            reconnectionDelay: 1000,
+            transports: ['websocket']
         });
 
         // Setup generic connect logs
