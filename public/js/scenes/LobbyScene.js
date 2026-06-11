@@ -2,6 +2,7 @@
 
 import socketManager from '../managers/SocketManager.js';
 import { AVATARS } from '../utils/constants.js';
+import BotClient from './BotClient.js';
 
 export default class LobbyScene extends Phaser.Scene {
     constructor() {
@@ -10,6 +11,7 @@ export default class LobbyScene extends Phaser.Scene {
         this.localPlayerId = null;
         this.isHost = false;
         this.isReady = false;
+        this.activeBots = [];
     }
 
     create() {
@@ -102,8 +104,23 @@ export default class LobbyScene extends Phaser.Scene {
     setupLobbyUI() {
         const readyBtn = document.getElementById('btn-ready');
         const startGameBtn = document.getElementById('btn-start-game');
+        const addBotBtn = document.getElementById('btn-add-bot');
         const copyCodeBtn = document.getElementById('btn-copy-code');
         const codeDisplay = document.getElementById('room-code-display');
+
+        // Add Bot Button
+        if (addBotBtn) {
+            addBotBtn.onclick = () => {
+                if (this.isHost) {
+                    const code = codeDisplay.textContent;
+                    if (code && code !== 'XXXXXX') {
+                        const bot = new BotClient(code);
+                        bot.connect();
+                        this.activeBots.push(bot);
+                    }
+                }
+            };
+        }
 
         // Ready button
         if (readyBtn) {
@@ -188,6 +205,20 @@ export default class LobbyScene extends Phaser.Scene {
         socketManager.on('room-joined', (data) => {
             this.localPlayerId = data.playerId;
             this.handleRoomJoined(data.roomState);
+            const addBotBtn = document.getElementById('btn-add-bot');
+            if (addBotBtn) {
+                addBotBtn.style.display = this.isHost ? 'inline-block' : 'none';
+            }
+        });
+
+        // Host Transferred
+        socketManager.on('host-transferred', ({ newHostId }) => {
+            this.isHost = (this.localPlayerId === newHostId);
+            const addBotBtn = document.getElementById('btn-add-bot');
+            if (addBotBtn) {
+                addBotBtn.style.display = this.isHost ? 'inline-block' : 'none';
+            }
+            this.updateHostControls();
         });
 
         // Room players update
@@ -225,6 +256,7 @@ export default class LobbyScene extends Phaser.Scene {
         // Host gets start button, normal players get ready button
         const startBtn = document.getElementById('btn-start-game');
         const readyBtn = document.getElementById('btn-ready');
+        const addBotBtn = document.getElementById('btn-add-bot');
         
         if (this.isHost) {
             if (startBtn) startBtn.style.display = 'block';
