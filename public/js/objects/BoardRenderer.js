@@ -127,7 +127,7 @@ export default class BoardRenderer {
 
             // Title label
             let titleY = -coords.height / 2 + (sq.type === 'property' ? 24 : 10);
-            let fontSize = isCorner ? '13px' : '10px';
+            let fontSize = isCorner ? '14px' : '13px';
             let nameText = sq.name;
 
             // Shorten longer words for side bars if necessary
@@ -142,6 +142,11 @@ export default class BoardRenderer {
                 color: '#E2E8F0',
                 align: 'center'
             }).setOrigin(0.5, 0);
+            
+            // Counter-rotate text so it is always perfectly upright
+            if (!isCorner) {
+                title.setAngle(-coords.rotation);
+            }
             container.add(title);
 
             // Price label
@@ -149,25 +154,32 @@ export default class BoardRenderer {
                 const priceVal = sq.price || sq.cost;
                 const priceText = this.scene.add.text(0, coords.height / 2 - 14, `฿${priceVal}`, {
                     fontFamily: 'Inter, sans-serif',
-                    fontSize: '9px',
+                    fontSize: '11px',
                     fontWeight: 'bold',
                     color: '#EAB308'
                 }).setOrigin(0.5, 0);
+                
+                if (!isCorner) {
+                    priceText.setAngle(-coords.rotation);
+                }
                 container.add(priceText);
             }
 
-            // Add icons or graphics for utilities / special spots
             if (sq.type === 'utility' && sq.icon) {
-                const icon = this.scene.add.text(0, -5, sq.icon, { fontSize: '20px' }).setOrigin(0.5);
+                const icon = this.scene.add.text(0, -5, sq.icon, { fontSize: '24px' }).setOrigin(0.5);
+                if (!isCorner) icon.setAngle(-coords.rotation);
                 container.add(icon);
             } else if (sq.type === 'railroad') {
-                const icon = this.scene.add.text(0, -5, '🚂', { fontSize: '18px' }).setOrigin(0.5);
+                const icon = this.scene.add.text(0, -5, '🚂', { fontSize: '22px' }).setOrigin(0.5);
+                if (!isCorner) icon.setAngle(-coords.rotation);
                 container.add(icon);
             } else if (sq.type === 'chance') {
-                const icon = this.scene.add.text(0, 0, '❓', { fontSize: '24px', color: '#EF4444' }).setOrigin(0.5);
+                const icon = this.scene.add.text(0, 0, '❓', { fontSize: '28px', color: '#EF4444' }).setOrigin(0.5);
+                if (!isCorner) icon.setAngle(-coords.rotation);
                 container.add(icon);
             } else if (sq.type === 'community') {
-                const icon = this.scene.add.text(0, 0, '📦', { fontSize: '22px', color: '#3B82F6' }).setOrigin(0.5);
+                const icon = this.scene.add.text(0, 0, '📦', { fontSize: '26px', color: '#3B82F6' }).setOrigin(0.5);
+                if (!isCorner) icon.setAngle(-coords.rotation);
                 container.add(icon);
             }
 
@@ -230,14 +242,14 @@ export default class BoardRenderer {
         if (playerColorHex) {
             const coords = getSquareCoords(position);
             const color = Phaser.Display.Color.HexStringToColor(playerColorHex).color;
-            // Draw a small circle near the inner bottom edge of the tile
-            g.fillStyle(color, 1);
-            g.lineStyle(1.5, 0xffffff, 1);
             
-            // local coords of tile
-            const dotY = coords.height / 2 - 25;
-            g.fillCircle(0, dotY, 6);
-            g.strokeCircle(0, dotY, 6);
+            // Draw a thick colored inner border for the property to show ownership clearly
+            g.lineStyle(5, color, 1);
+            g.strokeRect(-coords.width / 2 + 2.5, -coords.height / 2 + 2.5, coords.width - 5, coords.height - 5);
+            
+            // Optionally add a slight transparent fill
+            g.fillStyle(color, 0.15);
+            g.fillRect(-coords.width / 2, -coords.height / 2, coords.width, coords.height);
         }
     }
 

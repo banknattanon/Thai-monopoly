@@ -38,10 +38,20 @@ class GameEngine {
         this.turnPhase = 'roll';   // 'roll' | 'action' | 'end'
         this.activeAuction = null;
         this.activeTrades = new Map();
+        this.rolledDoublesExtraTurn = false;
 
         // Initialize structures
         this.houses = {};
         this.hotels = {};
+    }
+
+    endTurnPhase() {
+        if (this.rolledDoublesExtraTurn) {
+            this.turnPhase = 'roll';
+            this.rolledDoublesExtraTurn = false;
+        } else {
+            this.turnPhase = 'end';
+        }
     }
 
     shuffleDeck(deck) {
@@ -83,11 +93,15 @@ class GameEngine {
                 result.goToJail = true;
                 result.newPosition = 10;
                 this.doublesCount = 0;
+                this.rolledDoublesExtraTurn = false;
                 this.turnPhase = 'end';
                 return result;
+            } else {
+                this.rolledDoublesExtraTurn = true;
             }
         } else {
             this.doublesCount = 0;
+            this.rolledDoublesExtraTurn = false;
         }
 
         const moveResult = this.movePlayer(player.id, total);
@@ -108,10 +122,11 @@ class GameEngine {
         if (hasBuyOption) {
             this.turnPhase = 'action';
         } else {
-            if (isDouble && !player.inJail) {
-                this.turnPhase = 'roll';
-            } else {
+            if (player.inJail) {
                 this.turnPhase = 'end';
+                this.rolledDoublesExtraTurn = false;
+            } else {
+                this.endTurnPhase();
             }
         }
 
@@ -257,7 +272,7 @@ class GameEngine {
             player.money -= square.price;
             this.propertyOwners[position] = playerId;
             player.properties.push(position);
-            this.turnPhase = 'end';
+            this.endTurnPhase();
             return { success: true, cost: square.price };
         }
         return { success: false };
@@ -433,9 +448,13 @@ class GameEngine {
                 result.newPosition = moveResult.newPosition;
                 result.passedGo = moveResult.passedGo;
                 result.landingEffect = this.resolveLanding(playerId, total);
-                this.turnPhase = (result.landingEffect && result.landingEffect.type === 'buy-option') ? 'action' : 'end';
+                if (result.landingEffect && result.landingEffect.type === 'buy-option') {
+                    this.turnPhase = 'action';
+                } else {
+                    this.endTurnPhase();
+                }
             } else {
-                this.turnPhase = 'end';
+                this.endTurnPhase();
             }
         }
         return result;
@@ -711,6 +730,7 @@ class GameEngine {
             finalPrice: highestBid
         };
         this.activeAuction = null;
+        this.endTurnPhase();
         return result;
     }
 
