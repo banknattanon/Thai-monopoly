@@ -2,7 +2,7 @@
 
 import socketManager from '../managers/SocketManager.js';
 import { AVATARS } from '../utils/constants.js';
-import BotClient from './BotClient.js';
+import BotClient from '../objects/BotClient.js';
 
 export default class LobbyScene extends Phaser.Scene {
     constructor() {
