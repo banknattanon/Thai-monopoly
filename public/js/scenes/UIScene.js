@@ -204,7 +204,7 @@ export default class UIScene extends Phaser.Scene {
                 const phase = this.gameState.turnPhase;
 
                 // Build/Mortgage features are accessible during setup roll or end turn
-                if (phase === 'roll' || phase === 'post_roll' || phase === 'jail_decision') {
+                if (phase === 'roll' || phase === 'end') {
                     // Check if player owns properties to mortgage or build
                     const myProps = this.gameState.players.find(p => p.id === this.localPlayerId).properties;
                     if (myProps.length > 0) {
@@ -225,10 +225,10 @@ export default class UIScene extends Phaser.Scene {
                     } else {
                         if (this.btnRoll) this.btnRoll.style.display = 'block';
                     }
-                } else if (phase === 'buy_decision') {
+                } else if (phase === 'action') {
                     if (this.btnBuy) this.btnBuy.style.display = 'block';
                     if (this.btnDecline) this.btnDecline.style.display = 'block';
-                } else if (phase === 'post_roll' || phase === 'jail_decision') {
+                } else if (phase === 'end') {
                     if (this.btnEndTurn) this.btnEndTurn.style.display = 'block';
                 }
             }

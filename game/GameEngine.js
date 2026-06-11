@@ -3,6 +3,7 @@ const Cards = require('./Cards');
 
 class GameEngine {
     constructor(players, settings) {
+        this.settings = settings;
         this.board = Board.getSquares().map(sq => ({
             ...sq,
             isMortgaged: false
