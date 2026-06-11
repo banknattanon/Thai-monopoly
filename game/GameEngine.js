@@ -861,6 +861,7 @@ class GameEngine {
             propertyOwners: this.propertyOwners,
             freeParkingPot: this.freeParkingPot,
             activeAuction: this.activeAuction,
+            currentTakeoverCost: this.currentTakeoverCost,
             board: this.board.map((sq, idx) => ({
                 ...sq,
                 isMortgaged: !!sq.isMortgaged,

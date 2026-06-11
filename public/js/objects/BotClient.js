@@ -247,8 +247,8 @@ export default class BotClient {
         for (const [color, positions] of Object.entries(colorGroups)) {
             for (const pos of positions) {
                 if (this.gameState.propertyOwners[pos] === this.playerId) {
-                    const h = this.gameState.houses[pos] || 0;
-                    const isHotel = this.gameState.hotels[pos] || false;
+                    const h = this.gameState.board[pos].houses || 0;
+                    const isHotel = this.gameState.board[pos].hotel || false;
                     const totalH = isHotel ? 5 : h;
                     const buildCost = this.gameState.board[pos].buildCost;
 
