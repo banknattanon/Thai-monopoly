@@ -420,9 +420,9 @@ export default class GameScene extends Phaser.Scene {
             }
 
             // Sync houses/hotels
-            const propState = this.gameState.properties[i];
+            const propState = this.gameState.board[i];
             const houses = propState ? propState.houses : 0;
-            const hasHotel = propState ? propState.hasHotel : false;
+            const hasHotel = propState ? propState.hotel : false;
             this.boardRenderer.updateBuildings(i, houses, hasHotel);
         }
     }

@@ -816,6 +816,7 @@ class GameEngine {
     getFullState() {
         return {
             players: this.players,
+            settings: this.settings,
             currentPlayerIndex: this.currentPlayerIndex,
             currentPlayerId: this.getCurrentPlayer().id,
             doublesCount: this.doublesCount,

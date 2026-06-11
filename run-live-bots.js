@@ -1,13 +1,13 @@
 const { io } = require('socket.io-client');
 
 // Live Server URL
-const SERVER_URL = 'https://thai-monopoly.onrender.com';
-const ROOM_CODE = 'W25ANR';
+const SERVER_URL = process.argv[3] || 'https://thai-monopoly.onrender.com';
+const ROOM_CODE = process.argv[2] || 'UED94U';
 
 const BOT_TEMPLATES = [
-    { name: 'บอทหมาน้อย 🐶', avatar: '🐶' },
-    { name: 'บอทกระต่าย 🐰', avatar: '🐰' },
-    { name: 'บอทไดโนน้อย 🦖', avatar: '🦖' }
+    { name: 'บอทหมาน้อย 🐶', avatar: '🐶', playerId: 'p_b3hrqu9c8' },
+    { name: 'บอทกระต่าย 🐰', avatar: '🐰', playerId: 'p_jbjy4ylw9' },
+    { name: 'บอทไดโนน้อย 🦖', avatar: '🦖', playerId: 'p_7phfsmqpr' }
 ];
 
 const clients = [];
@@ -26,13 +26,13 @@ function connectBot(index) {
         reconnectionAttempts: 5
     });
     
-    const botClient = { socket, name: info.name, id: null, position: 0, index };
+    const botClient = { socket, name: info.name, id: info.playerId, position: 0, index };
     clients.push(botClient);
 
     socket.on('connect', () => {
         console.log(`[${info.name}] Connected to server! Socket ID: ${socket.id}`);
-        console.log(`[${info.name}] Joining room ${ROOM_CODE}...`);
-        socket.emit('join-room', { roomCode: ROOM_CODE, playerName: info.name, avatar: info.avatar });
+        console.log(`[${info.name}] Reconnecting/Joining room ${ROOM_CODE}...`);
+        socket.emit('join-room', { roomCode: ROOM_CODE, playerName: info.name, avatar: info.avatar, playerId: info.playerId });
     });
 
     socket.on('room-joined', ({ roomState, playerId }) => {

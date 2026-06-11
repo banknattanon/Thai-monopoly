@@ -224,13 +224,12 @@ export default class BoardRenderer {
         const container = this.squareContainers[position];
         if (!container) return;
 
-        const coords = getSquareCoords(position);
-        const color = Phaser.Display.Color.HexStringToColor(playerColorHex).color;
-
         const g = container.ownerGraphics;
         g.clear();
 
         if (playerColorHex) {
+            const coords = getSquareCoords(position);
+            const color = Phaser.Display.Color.HexStringToColor(playerColorHex).color;
             // Draw a small circle near the inner bottom edge of the tile
             g.fillStyle(color, 1);
             g.lineStyle(1.5, 0xffffff, 1);
