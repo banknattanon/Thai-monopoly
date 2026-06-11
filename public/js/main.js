@@ -7,7 +7,7 @@ import UIScene from './scenes/UIScene.js';
 
 const config = {
     type: Phaser.AUTO,
-    width: 1280,
+    width: 960,
     height: 960,
     parent: 'phaser-container',
     scale: {

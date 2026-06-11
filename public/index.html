@@ -163,8 +163,78 @@
         <!-- SCREEN 3: Game (Phaser renders here + HTML Overlays) -->
         <section id="game-screen" class="screen">
             <div class="game-layout">
-                <!-- Phaser Canvas Mount Point -->
-                <div id="phaser-container" class="phaser-mount"></div>
+                <!-- Left side (Board + Action Bar) -->
+                <div class="game-board-side">
+                    <!-- Phaser Canvas Mount Point -->
+                    <div id="phaser-container" class="phaser-mount"></div>
+                    
+                    <!-- Bottom Action Controls Overlay -->
+                    <div class="hud-action-bar-container">
+                        <div class="hud-action-bar glass-panel animate-slide-in-up">
+                            <div class="current-turn-info">
+                                <span class="turn-avatar" id="current-player-avatar">🐱</span>
+                                <div class="turn-desc">
+                                    <div class="turn-label">ตาของผู้เล่น / Turn:</div>
+                                    <div class="turn-name" id="current-player-name">กำลังรอเกมเริ่ม...</div>
+                                </div>
+                            </div>
+                            
+                            <div class="action-buttons-group">
+                                <!-- Roll Dice -->
+                                <button type="button" id="btn-roll-dice" class="btn btn-primary btn-glow-gold btn-action">
+                                    🎲 ทอยเต๋า / Roll Dice
+                                </button>
+                                
+                                <!-- Land Actions -->
+                                <button type="button" id="btn-buy" class="btn btn-success btn-action" style="display: none;">
+                                    💰 ซื้อที่ดิน / Buy Property
+                                </button>
+                                <button type="button" id="btn-decline" class="btn btn-danger btn-action" style="display: none;">
+                                    ❌ ไม่ซื้อ / Decline
+                                </button>
+                                
+                                <!-- Build House / Hotel -->
+                                <button type="button" id="btn-build-house" class="btn btn-secondary btn-action" style="display: none;">
+                                    🏠 สร้างบ้าน / Build House
+                                </button>
+                                <button type="button" id="btn-build-hotel" class="btn btn-secondary btn-action" style="display: none;">
+                                    🏨 สร้างโรงแรม / Build Hotel
+                                </button>
+                                
+                                <!-- Mortgage Properties -->
+                                <button type="button" id="btn-mortgage" class="btn btn-warning btn-action" style="display: none;">
+                                    📋 จำนอง / Mortgage
+                                </button>
+                                
+                                <!-- Trade button -->
+                                <button type="button" id="btn-trade" class="btn btn-info btn-action" style="display: none;">
+                                    🤝 แลกเปลี่ยน / Trade
+                                </button>
+                                
+                                <!-- Jail Actions -->
+                                <button type="button" id="btn-jail-pay" class="btn btn-warning btn-action" style="display: none;">
+                                    🔒 จ่ายค่าประกัน ฿500
+                                </button>
+                                <button type="button" id="btn-jail-card" class="btn btn-info btn-action" style="display: none;">
+                                    🃏 ใช้การ์ดออกคุก
+                                </button>
+                                <button type="button" id="btn-jail-roll" class="btn btn-primary btn-action" style="display: none;">
+                                    🎲 ทอยเต๋าออกคุก
+                                </button>
+                                
+                                <!-- End Turn -->
+                                <button type="button" id="btn-end-turn" class="btn btn-secondary btn-action" style="display: none;">
+                                    ✅ จบเทิร์น / End Turn
+                                </button>
+                            </div>
+                            
+                            <!-- Timer Indicator -->
+                            <div class="turn-timer-display" id="turn-timer-display" style="display: none;">
+                                ⏱️ <span id="turn-timer-count">∞</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <!-- HTML Game HUD overlayed over Phaser or side panel -->
                 <div class="game-hud-side">
@@ -213,69 +283,7 @@
                     </div>
                 </div>
                 
-                <!-- Bottom Action Controls Overlay (Sticky / Absolute bottom) -->
-                <div class="hud-action-bar-container">
-                    <div class="hud-action-bar glass-panel animate-slide-in-up">
-                        <div class="current-turn-info">
-                            <span class="turn-avatar" id="current-player-avatar">🐱</span>
-                            <div class="turn-desc">
-                                <div class="turn-label">ตาของผู้เล่น / Turn:</div>
-                                <div class="turn-name" id="current-player-name">กำลังรอเกมเริ่ม...</div>
-                            </div>
-                        </div>
-                        
-                        <div class="action-buttons-group">
-                            <!-- Roll Dice -->
-                            <button type="button" id="btn-roll-dice" class="btn btn-primary btn-glow-gold btn-action">
-                                🎲 ทอยเต๋า / Roll Dice
-                            </button>
-                            
-                            <!-- Land Actions -->
-                            <button type="button" id="btn-buy" class="btn btn-success btn-action" style="display: none;">
-                                💰 ซื้อที่ดิน / Buy Property
-                            </button>
-                            <button type="button" id="btn-decline" class="btn btn-danger btn-action" style="display: none;">
-                                ❌ ไม่ซื้อ / Decline
-                            </button>
-                            
-                            <!-- Build House / Hotel -->
-                            <button type="button" id="btn-build-house" class="btn btn-secondary btn-action" style="display: none;">
-                                🏠 สร้างบ้าน / Build House
-                            </button>
-                            <button type="button" id="btn-build-hotel" class="btn btn-secondary btn-action" style="display: none;">
-                                🏨 สร้างโรงแรม / Build Hotel
-                            </button>
-                            
-                            <!-- Mortgage Properties -->
-                            <button type="button" id="btn-mortgage" class="btn btn-warning btn-action" style="display: none;">
-                                📋 จำนอง / Mortgage
-                            </button>
-                            
-                            <!-- Trade button -->
-                            <button type="button" id="btn-trade" class="btn btn-info btn-action" style="display: none;">
-                                🤝 แลกเปลี่ยน / Trade
-                            </button>
-                            
-                            <!-- Jail Actions -->
-                            <button type="button" id="btn-jail-pay" class="btn btn-warning btn-action" style="display: none;">
-                                🔒 จ่ายค่าประกัน ฿500
-                            </button>
-                            <button type="button" id="btn-jail-card" class="btn btn-info btn-action" style="display: none;">
-                                🃏 ใช้การ์ดออกคุก
-                            </button>
-                            <button type="button" id="btn-jail-roll" class="btn btn-primary btn-action" style="display: none;">
-                                🎲 ทอยออกคุก / Roll
-                            </button>
-                            
-                            <!-- End Turn -->
-                            <button type="button" id="btn-end-turn" class="btn btn-secondary btn-action" style="display: none;">
-                                ✅ จบเทิร์น / End Turn
-                            </button>
-                        </div>
-                        
-                        <div id="hud-turn-timer" class="hud-timer">--:--</div>
-                    </div>
-                </div>
+
             </div>
         </section>
         
