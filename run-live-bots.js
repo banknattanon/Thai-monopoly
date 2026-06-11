@@ -7,8 +7,12 @@ const ROOM_CODE = process.argv[2] || 'UED94U';
 const BOT_TEMPLATES = [
     { name: 'บอทหมาน้อย 🐶', avatar: '🐶', playerId: 'p_b3hrqu9c8' },
     { name: 'บอทกระต่าย 🐰', avatar: '🐰', playerId: 'p_jbjy4ylw9' },
-    { name: 'บอทไดโนน้อย 🦖', avatar: '🦖', playerId: 'p_7phfsmqpr' }
+    { name: 'บอทไดโนน้อย 🦖', avatar: '🦖', playerId: 'p_7phfsmqpr' },
+    { name: 'บอทชาไข่มุก 🧋', avatar: '🧋', playerId: 'p_boba8t3k1' },
+    { name: 'บอทลูกเจี๊ยบ 🐥', avatar: '🐥', playerId: 'p_chick9x2z' }
 ];
+
+const BOT_COUNT = parseInt(process.argv[4]) || BOT_TEMPLATES.length;
 
 const clients = [];
 let gameState = null;
@@ -148,8 +152,9 @@ function processLandingDecision(botClient) {
     }, 2000);
 }
 
-// Start 3 bots
-for (let i = 0; i < 3; i++) {
+// Start bots
+const count = Math.min(BOT_COUNT, BOT_TEMPLATES.length);
+for (let i = 0; i < count; i++) {
     connectBot(i);
 }
 

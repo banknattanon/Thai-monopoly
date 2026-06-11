@@ -346,7 +346,7 @@ class RoomManager {
                     if (engine.settings.freeParkingRule) {
                         this.io.to(room.code).emit('free-parking-pot-updated', { pot: engine.freeParkingPot });
                     }
-                } else if (landing.type === 'rent') {
+                } else if (landing.type === 'rent' || landing.type === 'rent-and-takeover') {
                     this.io.to(room.code).emit('money-changed', {
                         playerId: currentPlayer.id,
                         amount: -landing.amount,
@@ -359,6 +359,11 @@ class RoomManager {
                         reason: 'rent_received',
                         money: engine.players.find(p => p.id === landing.ownerId).money
                     });
+                    if (landing.type === 'rent-and-takeover') {
+                        engine.turnPhase = 'takeover';
+                        // Keep current player's takeover details for UI
+                        engine.currentTakeoverCost = landing.takeoverCost;
+                    }
                 } else if (landing.type === 'card') {
                     this.io.to(room.code).emit('card-drawn', {
                         playerId: currentPlayer.id,
@@ -473,6 +478,66 @@ class RoomManager {
         } else {
             socket.emit('error-msg', { message: 'Cannot buy this property / ไม่สามารถซื้อที่ดินนี้ได้' });
         }
+    }
+
+    handleTakeoverProperty(socket) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId || engine.turnPhase !== 'takeover') {
+            socket.emit('error-msg', { message: 'Not allowed to takeover right now / ไม่สามารถซื้อต่อได้ในขณะนี้' });
+            return;
+        }
+
+        const position = currentPlayer.position;
+        const takeoverCost = engine.currentTakeoverCost;
+        const oldOwnerId = engine.propertyOwners[position];
+        const oldOwner = engine.players.find(p => p.id === oldOwnerId);
+
+        const result = engine.takeoverProperty(currentPlayer.id, position, takeoverCost);
+        if (result.success) {
+            this.io.to(room.code).emit('property-bought', {
+                playerId: currentPlayer.id,
+                position: position,
+                cost: takeoverCost,
+                isTakeover: true
+            });
+            
+            this.io.to(room.code).emit('money-changed', {
+                playerId: currentPlayer.id,
+                amount: -takeoverCost,
+                reason: 'takeover_paid',
+                money: currentPlayer.money
+            });
+            this.io.to(room.code).emit('money-changed', {
+                playerId: oldOwnerId,
+                amount: takeoverCost,
+                reason: 'takeover_received',
+                money: oldOwner.money
+            });
+
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        } else {
+            socket.emit('error-msg', { message: 'Cannot takeover this property / ไม่สามารถซื้อต่อที่ดินนี้ได้' });
+        }
+    }
+
+    handleDeclineTakeover(socket) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId || engine.turnPhase !== 'takeover') {
+            return;
+        }
+
+        engine.declineTakeover(currentPlayer.id);
+        this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
     }
 
     handleDeclineProperty(socket) {
@@ -922,6 +987,12 @@ class RoomManager {
         });
         socket.on('buy-property', ({ position }) => {
             this.handleBuyProperty(socket, position);
+        });
+        socket.on('takeover-property', () => {
+            this.handleTakeoverProperty(socket);
+        });
+        socket.on('decline-takeover', () => {
+            this.handleDeclineTakeover(socket);
         });
         socket.on('decline-property', () => {
             this.handleDeclineProperty(socket);

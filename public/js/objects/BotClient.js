@@ -126,7 +126,7 @@ export default class BotClient {
         if (this.gameState.turnPhase === 'roll') {
             this.socket.emit('roll-dice');
             setTimeout(() => this.processLanding(), 2500); // wait for dice animation
-        } else if (this.gameState.turnPhase === 'action') {
+        } else if (this.gameState.turnPhase === 'action' || this.gameState.turnPhase === 'takeover') {
             this.processLanding();
         } else if (this.gameState.turnPhase === 'end') {
             this.socket.emit('end-turn');
@@ -138,25 +138,33 @@ export default class BotClient {
         const me = this.getMe();
         if (!me) return;
 
-        if (this.gameState.turnPhase === 'action') {
+        if (this.gameState.turnPhase === 'action' || this.gameState.turnPhase === 'takeover') {
             const currentPosition = me.position;
             const square = this.gameState.board[currentPosition];
             
-            if (square && (square.type === 'property' || square.type === 'railroad' || square.type === 'utility')) {
+            if (this.gameState.turnPhase === 'takeover') {
+                const takeoverCost = this.gameState.currentTakeoverCost;
+                const willLeaveCash = me.money - takeoverCost;
+                
+                // Aggressive takeover if leaving decent cash reserve
+                if (willLeaveCash > 500) {
+                    this.socket.emit('takeover-property');
+                } else {
+                    this.socket.emit('decline-takeover');
+                }
+            } else if (square && (square.type === 'property' || square.type === 'railroad' || square.type === 'utility')) {
                 const ownerId = this.gameState.propertyOwners[currentPosition];
                 if (!ownerId) {
                     const cost = square.price;
                     // Smart Buy Logic
-                    // Keep a small buffer of $300, unless it completes a monopoly!
                     let willBuy = false;
                     const willLeaveCash = me.money - cost;
                     
                     if (willLeaveCash > 300) {
                         willBuy = true;
                     } else if (willLeaveCash > 0) {
-                        // Check if it completes a set or is a good investment
-                        if (square.type === 'railroad') willBuy = true; // Railroads are good
-                        else willBuy = Math.random() > 0.5; // 50% chance if poor
+                        if (square.type === 'railroad') willBuy = true;
+                        else willBuy = Math.random() > 0.5;
                     }
 
                     if (willBuy) {
@@ -237,35 +245,24 @@ export default class BotClient {
         };
 
         for (const [color, positions] of Object.entries(colorGroups)) {
-            const ownsAll = positions.every(pos => this.gameState.propertyOwners[pos] === this.playerId);
-            if (ownsAll) {
-                // Find minimum houses in this group
-                let minHouses = 5;
-                let minPos = -1;
-                let buildCost = 0;
-
-                for (const pos of positions) {
+            for (const pos of positions) {
+                if (this.gameState.propertyOwners[pos] === this.playerId) {
                     const h = this.gameState.houses[pos] || 0;
                     const isHotel = this.gameState.hotels[pos] || false;
                     const totalH = isHotel ? 5 : h;
-                    
-                    if (totalH < minHouses) {
-                        minHouses = totalH;
-                        minPos = pos;
-                        buildCost = this.gameState.board[pos].buildCost;
-                    }
-                }
+                    const buildCost = this.gameState.board[pos].buildCost;
 
-                // If we can afford to build and we haven't maxed out hotels
-                if (minPos !== -1 && minHouses < 5 && me.money - buildCost > 500) {
-                    // Try to build
-                    if (minHouses === 4) {
-                        this.socket.emit('build-hotel', { position: minPos });
-                    } else {
-                        this.socket.emit('build-house', { position: minPos });
+                    // If we can afford to build and we haven't maxed out hotels
+                    if (totalH < 5 && me.money - buildCost > 500) {
+                        // Try to build
+                        if (totalH === 4) {
+                            this.socket.emit('build-hotel', { position: pos });
+                        } else {
+                            this.socket.emit('build-house', { position: pos });
+                        }
+                        // Only build one per check to avoid spamming
+                        return;
                     }
-                    // Only build one per check to avoid spamming
-                    break;
                 }
             }
         }

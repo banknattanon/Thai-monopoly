@@ -132,6 +132,14 @@ class SocketManager {
         this.emit('buy-property', { position });
     }
 
+    takeoverProperty() {
+        this.emit('takeover-property');
+    }
+
+    declineTakeover() {
+        this.emit('decline-takeover');
+    }
+
     declineProperty() {
         this.emit('decline-property');
     }

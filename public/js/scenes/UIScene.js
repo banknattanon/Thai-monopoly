@@ -59,9 +59,21 @@ export default class UIScene extends Phaser.Scene {
         if (this.btnRoll) this.btnRoll.onclick = () => socketManager.rollDice();
         if (this.btnBuy) this.btnBuy.onclick = () => {
             const me = this.gameState.players.find(p => p.id === this.localPlayerId);
-            if (me) socketManager.buyProperty(me.position);
+            if (me) {
+                if (this.gameState.turnPhase === 'takeover') {
+                    socketManager.takeoverProperty();
+                } else {
+                    socketManager.buyProperty(me.position);
+                }
+            }
         };
-        if (this.btnDecline) this.btnDecline.onclick = () => socketManager.declineProperty();
+        if (this.btnDecline) this.btnDecline.onclick = () => {
+            if (this.gameState.turnPhase === 'takeover') {
+                socketManager.declineTakeover();
+            } else {
+                socketManager.declineProperty();
+            }
+        };
         if (this.btnEndTurn) this.btnEndTurn.onclick = () => socketManager.endTurn();
 
         // Jail actions
@@ -226,8 +238,27 @@ export default class UIScene extends Phaser.Scene {
                         if (this.btnRoll) this.btnRoll.style.display = 'block';
                     }
                 } else if (phase === 'action') {
-                    if (this.btnBuy) this.btnBuy.style.display = 'block';
-                    if (this.btnDecline) this.btnDecline.style.display = 'block';
+                    if (this.btnBuy) {
+                        this.btnBuy.style.display = 'block';
+                        this.btnBuy.textContent = '💰 ซื้อที่ดิน / Buy';
+                        this.btnBuy.classList.remove('btn-danger');
+                        this.btnBuy.classList.add('btn-success');
+                    }
+                    if (this.btnDecline) {
+                        this.btnDecline.style.display = 'block';
+                        this.btnDecline.textContent = '❌ ไม่ซื้อ / Decline';
+                    }
+                } else if (phase === 'takeover') {
+                    if (this.btnBuy) {
+                        this.btnBuy.style.display = 'block';
+                        this.btnBuy.textContent = `⚔️ ซื้อต่อ (฿${this.gameState.currentTakeoverCost})`;
+                        this.btnBuy.classList.remove('btn-success');
+                        this.btnBuy.classList.add('btn-danger'); // Make it look aggressive
+                    }
+                    if (this.btnDecline) {
+                        this.btnDecline.style.display = 'block';
+                        this.btnDecline.textContent = '❌ ข้าม / Skip';
+                    }
                 } else if (phase === 'end') {
                     if (this.btnEndTurn) this.btnEndTurn.style.display = 'block';
                 }

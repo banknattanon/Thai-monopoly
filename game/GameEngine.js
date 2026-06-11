@@ -161,6 +161,19 @@ class GameEngine {
                     if (!owner.inJail && !square.isMortgaged) {
                         const rent = this.calculateRent(position, diceTotal);
                         this.payRent(playerId, ownerId, rent);
+                        
+                        // Check for takeover (2x property + building cost)
+                        let takeoverValue = square.price;
+                        if (square.type === 'property') {
+                            const houses = this.houses[position] || 0;
+                            const hotels = this.hotels[position] ? 1 : 0;
+                            takeoverValue += (houses * square.buildCost) + (hotels * 5 * square.buildCost);
+                        }
+                        const takeoverCost = takeoverValue * 2; // 2x cost to takeover
+                        
+                        if (player.money >= takeoverCost) {
+                            return { type: 'rent-and-takeover', ownerId, amount: rent, property: square, takeoverCost };
+                        }
                         return { type: 'rent', ownerId, amount: rent };
                     }
                 }
@@ -278,28 +291,41 @@ class GameEngine {
         return { success: false };
     }
 
+    takeoverProperty(playerId, position, cost) {
+        const player = this.players.find(p => p.id === playerId);
+        const oldOwnerId = this.propertyOwners[position];
+        const oldOwner = this.players.find(p => p.id === oldOwnerId);
+        
+        if (player && oldOwner && player.money >= cost) {
+            player.money -= cost;
+            oldOwner.money += cost;
+            
+            // Transfer ownership
+            this.propertyOwners[position] = playerId;
+            oldOwner.properties = oldOwner.properties.filter(pos => pos !== position);
+            player.properties.push(position);
+            
+            this.endTurnPhase();
+            return { success: true };
+        }
+        return { success: false };
+    }
+
+    declineTakeover(playerId) {
+        this.endTurnPhase();
+        return { success: true };
+    }
+
     canBuildHouse(playerId, position) {
         const player = this.players.find(p => p.id === playerId);
         const square = this.board[position];
         if (!player || player.isBankrupt || !square || square.type !== 'property') return false;
         if (this.propertyOwners[position] !== playerId) return false;
 
-        const group = Board.COLOR_GROUPS[square.colorGroup];
-        const ownsAll = group.every(pos => this.propertyOwners[pos] === playerId);
-        if (!ownsAll) return false;
-
-        const hasMortgaged = group.some(pos => this.board[pos].isMortgaged);
-        if (hasMortgaged) return false;
+        if (this.board[position].isMortgaged) return false;
 
         const currentHouses = this.houses[position] || 0;
         if (currentHouses >= 4 || this.hotels[position]) return false;
-
-        const targetHouses = currentHouses + 1;
-        const isEven = group.every(pos => {
-            const h = this.houses[pos] || 0;
-            return targetHouses - h <= 1 || this.hotels[pos];
-        });
-        if (!isEven) return false;
 
         return player.money >= square.buildCost;
     }
@@ -321,19 +347,9 @@ class GameEngine {
         if (!player || player.isBankrupt || !square || square.type !== 'property') return false;
         if (this.propertyOwners[position] !== playerId) return false;
 
-        const group = Board.COLOR_GROUPS[square.colorGroup];
-        const ownsAll = group.every(pos => this.propertyOwners[pos] === playerId);
-        if (!ownsAll) return false;
-
-        const hasMortgaged = group.some(pos => this.board[pos].isMortgaged);
-        if (hasMortgaged) return false;
+        if (this.board[position].isMortgaged) return false;
 
         if ((this.houses[position] || 0) !== 4 || this.hotels[position]) return false;
-
-        const isEven = group.every(pos => {
-            return (this.houses[pos] || 0) >= 4 || this.hotels[pos];
-        });
-        if (!isEven) return false;
 
         return player.money >= square.buildCost;
     }
