@@ -1,0 +1,373 @@
+/* ==========================================
+   BOARD CONTAINER LAYOUT
+   ========================================== */
+.monopoly-board {
+    display: grid;
+    grid-template-columns: repeat(13, 1fr);
+    grid-template-rows: repeat(13, 1fr);
+    width: min(78vh, 78vw);
+    height: min(78vh, 78vw);
+    background-color: var(--bg-surface);
+    border: 3px solid var(--border-gold);
+    border-radius: var(--radius-xl);
+    position: relative;
+    box-shadow: var(--shadow-card), var(--shadow-glow);
+    padding: 4px;
+    gap: 2px;
+}
+
+@media (max-width: 1280px) {
+    .monopoly-board {
+        width: 95vw;
+        height: 95vw;
+    }
+}
+
+/* ==========================================
+   CORNERS (2x2 Grid Tracks)
+   ========================================== */
+.square-corner {
+    grid-area: span 2 / span 2;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1.5px solid var(--border-subtle);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 10px;
+    text-align: center;
+    position: relative;
+}
+
+/* Corner Positions */
+.sq-0 { /* GO */
+    grid-row: 12 / 14;
+    grid-column: 12 / 14;
+    border-color: var(--color-success);
+}
+.sq-10 { /* Jail */
+    grid-row: 12 / 14;
+    grid-column: 1 / 3;
+    border-color: var(--color-danger);
+}
+.sq-20 { /* Free Parking */
+    grid-row: 1 / 3;
+    grid-column: 1 / 3;
+    border-color: var(--color-info);
+}
+.sq-30 { /* Go to Jail */
+    grid-row: 1 / 3;
+    grid-column: 12 / 14;
+    border-color: var(--color-warning);
+}
+
+/* ==========================================
+   SIDES (1x2 or 2x1 Grid Tracks)
+   ========================================== */
+.square-side {
+    background: rgba(255, 255, 255, 0.01);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.square-side:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--color-gold);
+}
+
+/* Top & Bottom Side Tiles (2 grid rows, 1 col) */
+.side-top, .side-bottom {
+    grid-row-end: span 2;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 4px;
+}
+
+/* Left & Right Side Tiles (1 grid row, 2 cols) */
+.side-left, .side-right {
+    grid-column-end: span 2;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+}
+
+/* ==========================================
+   SIDE SPECIFIC GRID MAPPING (0-39)
+   ========================================== */
+
+/* Bottom Side (1 to 9, Right-to-Left) */
+.sq-1  { grid-row: 12/14; grid-column: 11; }
+.sq-2  { grid-row: 12/14; grid-column: 10; }
+.sq-3  { grid-row: 12/14; grid-column: 9;  }
+.sq-4  { grid-row: 12/14; grid-column: 8;  }
+.sq-5  { grid-row: 12/14; grid-column: 7;  }
+.sq-6  { grid-row: 12/14; grid-column: 6;  }
+.sq-7  { grid-row: 12/14; grid-column: 5;  }
+.sq-8  { grid-row: 12/14; grid-column: 4;  }
+.sq-9  { grid-row: 12/14; grid-column: 3;  }
+
+/* Left Side (11 to 19, Bottom-to-Top) */
+.sq-11 { grid-row: 11; grid-column: 1/3; }
+.sq-12 { grid-row: 10; grid-column: 1/3; }
+.sq-13 { grid-row: 9;  grid-column: 1/3; }
+.sq-14 { grid-row: 8;  grid-column: 1/3; }
+.sq-15 { grid-row: 7;  grid-column: 1/3; }
+.sq-16 { grid-row: 6;  grid-column: 1/3; }
+.sq-17 { grid-row: 5;  grid-column: 1/3; }
+.sq-18 { grid-row: 4;  grid-column: 1/3; }
+.sq-19 { grid-row: 3;  grid-column: 1/3; }
+
+/* Top Side (21 to 29, Left-to-Right) */
+.sq-21 { grid-row: 1/3; grid-column: 3;  }
+.sq-22 { grid-row: 1/3; grid-column: 4;  }
+.sq-23 { grid-row: 1/3; grid-column: 5;  }
+.sq-24 { grid-row: 1/3; grid-column: 6;  }
+.sq-25 { grid-row: 1/3; grid-column: 7;  }
+.sq-26 { grid-row: 1/3; grid-column: 8;  }
+.sq-27 { grid-row: 1/3; grid-column: 9;  }
+.sq-28 { grid-row: 1/3; grid-column: 10; }
+.sq-29 { grid-row: 1/3; grid-column: 11; }
+
+/* Right Side (31 to 39, Top-to-Bottom) */
+.sq-31 { grid-row: 3;  grid-column: 12/14; }
+.sq-32 { grid-row: 4;  grid-column: 12/14; }
+.sq-33 { grid-row: 5;  grid-column: 12/14; }
+.sq-34 { grid-row: 6;  grid-column: 12/14; }
+.sq-35 { grid-row: 7;  grid-column: 12/14; }
+.sq-36 { grid-row: 8;  grid-column: 12/14; }
+.sq-37 { grid-row: 9;  grid-column: 12/14; }
+.sq-38 { grid-row: 10; grid-column: 12/14; }
+.sq-39 { grid-row: 11; grid-column: 12/14; }
+
+/* ==========================================
+   INNER TILE DESIGN COMPONENTS
+   ========================================== */
+
+/* Color Stripe */
+.tile-color-stripe {
+    position: absolute;
+    background-color: var(--border-subtle);
+}
+
+/* Orienting the color stripe per side */
+.side-bottom .tile-color-stripe {
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 12px;
+}
+.side-left .tile-color-stripe {
+    right: 0;
+    top: 0;
+    width: 12px;
+    height: 100%;
+}
+.side-top .tile-color-stripe {
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 12px;
+}
+.side-right .tile-color-stripe {
+    left: 0;
+    top: 0;
+    width: 12px;
+    height: 100%;
+}
+
+/* Tile Texts */
+.tile-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    width: 100%;
+    text-align: center;
+    gap: 2px;
+}
+
+.tile-name {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1.2;
+    padding: 0 2px;
+}
+
+.tile-price {
+    font-size: 0.55rem;
+    font-family: var(--font-en);
+    font-weight: 700;
+    color: var(--color-gold);
+}
+
+/* Rotations for side text readability */
+.side-left .tile-info {
+    transform: rotate(90deg);
+}
+.side-right .tile-info {
+    transform: rotate(-90deg);
+}
+.side-top .tile-info {
+    transform: rotate(180deg);
+}
+
+/* ==========================================
+   MID BOARD CENTER (Chance & Community Cards)
+   ========================================== */
+.board-center {
+    grid-row: 3 / 12;
+    grid-column: 3 / 12;
+    background: radial-gradient(circle at center, rgba(13, 17, 23, 0.4), rgba(13, 17, 23, 0.8));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    position: relative;
+    border-radius: var(--radius-lg);
+    box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.8);
+    overflow: hidden;
+}
+
+.board-center-logo {
+    text-align: center;
+    user-select: none;
+}
+
+.board-center-logo h1 {
+    font-size: 3rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #fff, var(--color-gold));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    letter-spacing: 4px;
+}
+
+.board-center-logo p {
+    font-size: 0.8rem;
+    letter-spacing: 6px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+}
+
+/* Card Decks inside Board Center */
+.deck-slots {
+    display: flex;
+    justify-content: space-between;
+    width: 60%;
+    margin-top: 40px;
+}
+
+.deck-slot {
+    width: 90px;
+    height: 130px;
+    border: 2px dashed var(--border-subtle);
+    border-radius: var(--radius-md);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    background: rgba(0,0,0,0.2);
+}
+
+.deck-slot.chance-deck {
+    border-color: rgba(251, 191, 36, 0.3);
+}
+
+.deck-slot.community-deck {
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* ==========================================
+   BUILDINGS & OWNER MARKERS
+   ========================================== */
+.owner-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    position: absolute;
+    box-shadow: 0 0 6px currentColor;
+    background-color: currentColor;
+}
+
+.side-bottom .owner-indicator { bottom: 16px; left: calc(50% - 4px); }
+.side-top .owner-indicator { top: 16px; left: calc(50% - 4px); }
+.side-left .owner-indicator { left: 16px; top: calc(50% - 4px); }
+.side-right .owner-indicator { right: 16px; top: calc(50% - 4px); }
+
+/* Building Indicators container */
+.tile-buildings {
+    display: flex;
+    gap: 2px;
+    position: absolute;
+}
+
+.side-bottom .tile-buildings { top: 14px; left: calc(50% - 14px); }
+.side-top .tile-buildings { bottom: 14px; left: calc(50% - 14px); }
+.side-left .tile-buildings { right: 14px; top: calc(50% - 14px); flex-direction: column; }
+.side-right .tile-buildings { left: 14px; top: calc(50% - 14px); flex-direction: column; }
+
+/* Houses (Green dots/squares) & Hotels (Red rectangles) */
+.house-indicator {
+    width: 6px;
+    height: 6px;
+    background-color: var(--color-success);
+    border-radius: 1px;
+}
+
+.hotel-indicator {
+    width: 14px;
+    height: 6px;
+    background-color: var(--color-danger);
+    border-radius: 1px;
+}
+
+.side-left .hotel-indicator,
+.side-right .hotel-indicator {
+    width: 6px;
+    height: 14px;
+}
+
+/* ==========================================
+   TOKEN POSITIONING OVERLAYS
+   ========================================== */
+.token-container {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.board-token {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+    background-color: var(--color-gold);
+    animation: float 2.5s ease-in-out infinite alternate;
+}

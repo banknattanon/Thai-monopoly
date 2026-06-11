@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เศรษฐี Online | Thai Monopoly Multiplayer</title>
+    <meta name="description" content="เล่นเกมเศรษฐีออนไลน์กับเพื่อน 2-6 คนในรูปแบบเว็บบราวเซอร์">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Style Sheets -->
+    <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/board.css">
+    <link rel="stylesheet" href="/css/animations.css">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- SCREEN 1: Landing -->
+        <section id="landing-screen" class="screen active">
+            <div class="landing-glass glass-panel animate-fade-in">
+                <div class="brand-logo">
+                    <h1 class="logo-text">เศรษฐี <span>ONLINE</span></h1>
+                    <p class="logo-sub">Thai Monopoly Multiplayer</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="input-player-name">ชื่อผู้เล่น / Player Name</label>
+                    <input type="text" id="input-player-name" placeholder="ใส่ชื่อของคุณ..." maxlength="12" autocomplete="off">
+                </div>
+                
+                <div class="avatar-section">
+                    <label>เลือกตัวเดินของคุณ / Select Avatar</label>
+                    <div class="avatar-grid" id="avatar-selector-grid">
+                        <div class="avatar-option selected" data-avatar="elephant">
+                            <span class="avatar-emoji">🐘</span>
+                            <span class="avatar-name">ช้าง</span>
+                        </div>
+                        <div class="avatar-option" data-avatar="tuktuk">
+                            <span class="avatar-emoji">🛺</span>
+                            <span class="avatar-name">ตุ๊กตุ๊ก</span>
+                        </div>
+                        <div class="avatar-option" data-avatar="noodle">
+                            <span class="avatar-emoji">🍜</span>
+                            <span class="avatar-name">ก๋วยเตี๋ยว</span>
+                        </div>
+                        <div class="avatar-option" data-avatar="temple">
+                            <span class="avatar-emoji">🏯</span>
+                            <span class="avatar-name">วัด</span>
+                        </div>
+                        <div class="avatar-option" data-avatar="diamond">
+                            <span class="avatar-emoji">💎</span>
+                            <span class="avatar-name">เพชร</span>
+                        </div>
+                        <div class="avatar-option" data-avatar="mask">
+                            <span class="avatar-emoji">🎭</span>
+                            <span class="avatar-name">หน้ากาก</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="room-action-section">
+                    <button type="button" id="btn-create-room" class="btn btn-primary btn-glow-gold">
+                        <span class="icon">✨</span> สร้างห้องใหม่ / Create Room
+                    </button>
+                    
+                    <div class="join-divider">
+                        <span>หรือเข้าร่วม / Or Join</span>
+                    </div>
+                    
+                    <div class="join-group">
+                        <input type="text" id="input-room-code" placeholder="รหัสห้อง 6 หลัก..." maxlength="6" autocomplete="off">
+                        <button type="button" id="btn-join-room" class="btn btn-secondary">
+                            เข้าร่วมห้อง / Join Room
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- SCREEN 2: Lobby -->
+        <section id="lobby-screen" class="screen">
+            <div class="lobby-grid">
+                <!-- Left Panel: Players -->
+                <div class="lobby-panel-left glass-panel animate-slide-in-up">
+                    <div class="panel-header">
+                        <h2>ผู้เล่นในห้อง / Players (<span id="lobby-player-count">1</span>/6)</h2>
+                    </div>
+                    <div class="players-list-wrapper">
+                        <div id="lobby-players-list" class="lobby-players-list">
+                            <!-- Populated dynamically via JS -->
+                            <div class="lobby-player-card item-host">
+                                <div class="player-avatar">🐘</div>
+                                <div class="player-info">
+                                    <div class="player-name">คุณ (Host)</div>
+                                    <div class="player-tag">เจ้าของห้อง</div>
+                                </div>
+                                <div class="player-status-badge status-ready">พร้อม</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Panel: Room Settings & Action -->
+                <div class="lobby-panel-right glass-panel animate-slide-in-up" style="animation-delay: 100ms;">
+                    <div class="panel-header">
+                        <h2>รหัสห้อง / Room Code</h2>
+                        <div class="room-code-display-container">
+                            <div id="room-code-display" class="room-code-text">XXXXXX</div>
+                            <button id="btn-copy-code" class="btn btn-icon-copy" title="Copy Code">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <div class="settings-section">
+                        <h3>ตั้งค่าเกม / Game Settings</h3>
+                        <div class="settings-grid">
+                            <div class="settings-option">
+                                <label for="setting-start-money">เงินเริ่มต้น / Starting Money</label>
+                                <select id="setting-start-money" class="select-gold" disabled>
+                                    <option value="15000" selected>฿15,000</option>
+                                    <option value="20000">฿20,000</option>
+                                    <option value="30000">฿30,000</option>
+                                </select>
+                            </div>
+                            <div class="settings-option">
+                                <label for="setting-go-bonus">เงินผ่านจุดเริ่มต้น / GO Bonus</label>
+                                <select id="setting-go-bonus" class="select-gold" disabled>
+                                    <option value="2000" selected>฿2,000</option>
+                                    <option value="3000">฿3,000</option>
+                                    <option value="4000">฿4,000</option>
+                                </select>
+                            </div>
+                            <div class="settings-option">
+                                <label for="setting-turn-timer">เวลาต่อเทิร์น / Turn Timer</label>
+                                <select id="setting-turn-timer" class="select-gold" disabled>
+                                    <option value="0" selected>ไม่จำกัด / Unlimited</option>
+                                    <option value="30">30 วินาที / Seconds</option>
+                                    <option value="60">60 วินาที / Seconds</option>
+                                </select>
+                            </div>
+                            <div class="settings-option checkbox-option">
+                                <input type="checkbox" id="setting-free-parking" disabled>
+                                <label for="setting-free-parking">สะสมภาษีลงที่จอดรถฟรี / Free Parking Rule</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="lobby-actions">
+                        <button type="button" id="btn-ready" class="btn btn-secondary">
+                            เตรียมพร้อม / Ready
+                        </button>
+                        <button type="button" id="btn-start-game" class="btn btn-primary btn-glow-gold" disabled>
+                            เริ่มเกม / Start Game
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- SCREEN 3: Game (Phaser renders here + HTML Overlays) -->
+        <section id="game-screen" class="screen">
+            <div class="game-layout">
+                <!-- Phaser Canvas Mount Point -->
+                <div id="phaser-container" class="phaser-mount"></div>
+                
+                <!-- HTML Game HUD overlayed over Phaser or side panel -->
+                <div class="game-hud-side">
+                    <!-- Players Panel -->
+                    <div id="hud-players-panel" class="glass-panel hud-panel">
+                        <h3>ผู้เล่น / Players</h3>
+                        <div id="hud-players-list" class="hud-players-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Chat & Log Panel -->
+                    <div id="chat-panel" class="glass-panel chat-panel">
+                        <div class="chat-header">
+                            <button id="chat-tab-btn" class="chat-tab-btn active" data-tab="chat">💬 พูดคุย</button>
+                            <button id="log-tab-btn" class="chat-tab-btn" data-tab="log">📋 บันทึกเกม</button>
+                        </div>
+                        
+                        <div class="chat-body-container">
+                            <!-- Tab Content: Chat -->
+                            <div id="chat-messages" class="chat-messages tab-content active">
+                                <div class="chat-msg system-msg">
+                                    ยินดีต้อนรับสู่ เศรษฐี Online Chat!
+                                </div>
+                            </div>
+                            <!-- Tab Content: Game Log -->
+                            <div id="game-log-messages" class="chat-messages tab-content">
+                                <div class="log-msg">[ระบบ] เริ่มต้นการบันทึกประวัติการเล่น</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Reaction Emoji Row -->
+                        <div class="chat-reactions">
+                            <button class="reaction-btn" data-emoji="🎉">🎉</button>
+                            <button class="reaction-btn" data-emoji="😱">😱</button>
+                            <button class="reaction-btn" data-emoji="💰">💰</button>
+                            <button class="reaction-btn" data-emoji="😤">😤</button>
+                            <button class="reaction-btn" data-emoji="🔥">🔥</button>
+                            <button class="reaction-btn" data-emoji="😭">😭</button>
+                        </div>
+                        
+                        <div class="chat-input-area">
+                            <input type="text" id="chat-input" placeholder="พิมพ์ข้อความที่นี่..." maxlength="50" autocomplete="off">
+                            <button type="button" id="btn-send-chat" class="btn btn-primary">ส่ง</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bottom Action Controls Overlay (Sticky / Absolute bottom) -->
+                <div class="hud-action-bar-container">
+                    <div class="hud-action-bar glass-panel animate-slide-in-up">
+                        <div class="current-turn-info">
+                            <span class="turn-avatar" id="current-player-avatar">🐘</span>
+                            <div class="turn-desc">
+                                <div class="turn-label">ตาของผู้เล่น / Turn:</div>
+                                <div class="turn-name" id="current-player-name">กำลังรอเกมเริ่ม...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="action-buttons-group">
+                            <!-- Roll Dice -->
+                            <button type="button" id="btn-roll-dice" class="btn btn-primary btn-glow-gold btn-action">
+                                🎲 ทอยเต๋า / Roll Dice
+                            </button>
+                            
+                            <!-- Land Actions -->
+                            <button type="button" id="btn-buy" class="btn btn-success btn-action" style="display: none;">
+                                💰 ซื้อที่ดิน / Buy Property
+                            </button>
+                            <button type="button" id="btn-decline" class="btn btn-danger btn-action" style="display: none;">
+                                ❌ ไม่ซื้อ / Decline
+                            </button>
+                            
+                            <!-- Build House / Hotel -->
+                            <button type="button" id="btn-build-house" class="btn btn-secondary btn-action" style="display: none;">
+                                🏠 สร้างบ้าน / Build House
+                            </button>
+                            <button type="button" id="btn-build-hotel" class="btn btn-secondary btn-action" style="display: none;">
+                                🏨 สร้างโรงแรม / Build Hotel
+                            </button>
+                            
+                            <!-- Mortgage Properties -->
+                            <button type="button" id="btn-mortgage" class="btn btn-warning btn-action" style="display: none;">
+                                📋 จำนอง / Mortgage
+                            </button>
+                            
+                            <!-- Trade button -->
+                            <button type="button" id="btn-trade" class="btn btn-info btn-action" style="display: none;">
+                                🤝 แลกเปลี่ยน / Trade
+                            </button>
+                            
+                            <!-- Jail Actions -->
+                            <button type="button" id="btn-jail-pay" class="btn btn-warning btn-action" style="display: none;">
+                                🔒 จ่ายค่าประกัน ฿500
+                            </button>
+                            <button type="button" id="btn-jail-card" class="btn btn-info btn-action" style="display: none;">
+                                🃏 ใช้การ์ดออกคุก
+                            </button>
+                            <button type="button" id="btn-jail-roll" class="btn btn-primary btn-action" style="display: none;">
+                                🎲 ทอยออกคุก / Roll
+                            </button>
+                            
+                            <!-- End Turn -->
+                            <button type="button" id="btn-end-turn" class="btn btn-secondary btn-action" style="display: none;">
+                                ✅ จบเทิร์น / End Turn
+                            </button>
+                        </div>
+                        
+                        <div id="hud-turn-timer" class="hud-timer">--:--</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- MODALS using standard HTML5 <dialog> elements for robust focus trapping & backdrop -->
+        
+        <!-- 1. TRADE DIALOG -->
+        <dialog id="trade-dialog" class="glass-dialog">
+            <div class="dialog-content">
+                <header class="dialog-header">
+                    <h2>🤝 เสนอแลกเปลี่ยนที่ดิน / Propose Trade</h2>
+                    <button class="btn-close-dialog" onclick="this.closest('dialog').close()">×</button>
+                </header>
+                <div class="dialog-body">
+                    <div class="trade-recipient-selector">
+                        <label for="trade-select-player">เลือกผู้เล่นที่ต้องการแลกเปลี่ยน:</label>
+                        <select id="trade-select-player" class="select-gold">
+                            <!-- Populated dynamically -->
+                        </select>
+                    </div>
+                    
+                    <div class="trade-grid">
+                        <!-- Left: You Offer -->
+                        <div class="trade-offer-side">
+                            <h4>คุณเสนอให้ / You Offer</h4>
+                            <div class="trade-money-input-wrapper">
+                                <label for="trade-offer-money">จำนวนเงิน (฿):</label>
+                                <input type="number" id="trade-offer-money" placeholder="0" min="0" value="0">
+                            </div>
+                            <label>เลือกโฉนดของคุณ:</label>
+                            <div id="trade-offer-properties-list" class="trade-property-list">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        
+                        <!-- Right: You Request -->
+                        <div class="trade-request-side">
+                            <h4>คุณขอรับ / You Request</h4>
+                            <div class="trade-money-input-wrapper">
+                                <label for="trade-request-money">จำนวนเงิน (฿):</label>
+                                <input type="number" id="trade-request-money" placeholder="0" min="0" value="0">
+                            </div>
+                            <label>เลือกโฉนดของคู่แลกเปลี่ยน:</label>
+                            <div id="trade-request-properties-list" class="trade-property-list">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <footer class="dialog-footer">
+                    <button type="button" class="btn btn-secondary" onclick="this.closest('dialog').close()">ยกเลิก / Cancel</button>
+                    <button type="button" id="btn-submit-trade" class="btn btn-primary btn-glow-gold">ส่งข้อเสนอ / Send Offer</button>
+                </footer>
+            </div>
+        </dialog>
+        
+        <!-- 2. INCOMING TRADE OFFER DIALOG (Used when another player proposes a trade) -->
+        <dialog id="incoming-trade-dialog" class="glass-dialog">
+            <div class="dialog-content">
+                <header class="dialog-header">
+                    <h2>🤝 ข้อเสนอแลกเปลี่ยนจากผู้เล่น / Incoming Trade</h2>
+                </header>
+                <div class="dialog-body">
+                    <p class="trade-incoming-desc"><span id="incoming-trade-proposer-name">ผู้เล่นอื่น</span> เสนอการแลกเปลี่ยนดังนี้:</p>
+                    <div class="trade-grid">
+                        <div class="trade-offer-side">
+                            <h4>คุณจะได้รับ / You Receive</h4>
+                            <div class="trade-summary-box">
+                                <div class="trade-summary-money">เงิน: ฿<span id="incoming-trade-offer-money">0</span></div>
+                                <div class="trade-summary-properties" id="incoming-trade-offer-properties">
+                                    <!-- List of properties -->
+                                </div>
+                            </div>
+                        </div>
+                        <div class="trade-request-side">
+                            <h4>คุณต้องให้ / You Give</h4>
+                            <div class="trade-summary-box">
+                                <div class="trade-summary-money">เงิน: ฿<span id="incoming-trade-request-money">0</span></div>
+                                <div class="trade-summary-properties" id="incoming-trade-request-properties">
+                                    <!-- List of properties -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <footer class="dialog-footer">
+                    <button type="button" id="btn-decline-trade" class="btn btn-danger">ปฏิเสธ / Decline</button>
+                    <button type="button" id="btn-accept-trade" class="btn btn-success">ยอมรับ / Accept</button>
+                </footer>
+            </div>
+        </dialog>
+        
+        <!-- 3. CARD REVEAL DIALOG -->
+        <dialog id="card-dialog" class="glass-dialog card-dialog">
+            <div class="dialog-content card-reveal-container">
+                <div id="card-element" class="monopoly-card chance-card">
+                    <!-- Dynamic classes: chance-card or community-card -->
+                    <div class="card-inner">
+                        <div class="card-front">
+                            <div class="card-header-stripe">
+                                <span id="card-category-title">โชคชะตา / Chance</span>
+                            </div>
+                            <div class="card-body">
+                                <div class="card-icon" id="card-icon-display">❓</div>
+                                <p class="card-text-th" id="card-text-th">เดินไปที่จุดเริ่มต้น รับ ฿2,000</p>
+                                <p class="card-text-en" id="card-text-en">Advance to GO. Collect ฿2,000</p>
+                            </div>
+                            <div class="card-footer-stripe">
+                                <button type="button" id="btn-card-close" class="btn btn-primary" onclick="this.closest('dialog').close()">รับทราบ / OK</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </dialog>
+        
+        <!-- 4. GAMEOVER DIALOG -->
+        <dialog id="gameover-dialog" class="glass-dialog">
+            <div class="dialog-content text-center">
+                <div class="confetti-container"></div>
+                <header class="dialog-header">
+                    <h2>🏆 จบเกม! / Game Over 🏆</h2>
+                </header>
+                <div class="dialog-body">
+                    <div class="winner-announcement">
+                        <div class="winner-emoji">👑</div>
+                        <h1 class="winner-name" id="winner-name-display">สมชาย / Somchai</h1>
+                        <p class="winner-tag">ผู้ชนะที่ครอบครองที่ดินทั้งหมด!</p>
+                    </div>
+                    
+                    <div class="game-stats-section">
+                        <h3>สรุปผลสถิติเกม / Game Stats</h3>
+                        <div id="gameover-stats-list" class="gameover-stats-list">
+                            <!-- Populated dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+                <footer class="dialog-footer justify-center">
+                    <button type="button" class="btn btn-primary btn-glow-gold" onclick="window.location.reload()">
+                        กลับสู่หน้าแรก / Play Again
+                    </button>
+                </footer>
+            </div>
+        </dialog>
+        
+    </div>
+
+    <!-- Phaser 4 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@4.1.0/dist/phaser.min.js"></script>
+    <!-- Socket.IO Client -->
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Game Scripts (ES Module) -->
+    <script type="module" src="/js/main.js"></script>
+</body>
+</html>

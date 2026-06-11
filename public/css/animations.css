@@ -1,0 +1,203 @@
+/* ==========================================
+   KEYFRAME ANIMATIONS
+   ========================================== */
+
+/* Gold Pulse (glow pulse for buttons / primary UI) */
+@keyframes goldPulse {
+    0% {
+        box-shadow: 0 0 5px hsla(45, 95%, 55%, 0.25), 0 0 0 0px hsla(45, 95%, 55%, 0.2);
+    }
+    50% {
+        box-shadow: 0 0 15px hsla(45, 95%, 55%, 0.45), 0 0 0 4px hsla(45, 95%, 55%, 0.1);
+    }
+    100% {
+        box-shadow: 0 0 25px hsla(45, 95%, 55%, 0.65), 0 0 0 8px hsla(45, 95%, 55%, 0);
+    }
+}
+
+/* Slide In Up (bottom slide in) */
+@keyframes slideInUp {
+    from {
+        transform: translateY(40px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Slide In Right (right slide in, toast) */
+@keyframes slideInRight {
+    from {
+        transform: translateX(120%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* Fade In (opacity zero to one) */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Shake (damage / rent fee alert) */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-6px); }
+    20%, 40%, 60%, 80% { transform: translateX(6px); }
+}
+
+/* Bounce (win reward / GO pass) */
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0) scale(1);
+    }
+    50% {
+        transform: translateY(-12px) scale(1.05);
+    }
+}
+
+/* Spin (Dice rolling spin) */
+@keyframes spin {
+    0% { transform: rotate(0deg) scale(1); }
+    25% { transform: rotate(90deg) scale(1.15); }
+    50% { transform: rotate(180deg) scale(0.9); }
+    75% { transform: rotate(270deg) scale(1.1); }
+    100% { transform: rotate(360deg) scale(1); }
+}
+
+/* Floating (Avatar hover / Token state) */
+@keyframes float {
+    0% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+    100% { transform: translateY(0px); }
+}
+
+/* Money Fly (floating indicator text +฿100 / -฿50) */
+@keyframes moneyFly {
+    0% {
+        transform: translateY(15px);
+        opacity: 0;
+    }
+    20% {
+        opacity: 1;
+    }
+    80% {
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(-50px);
+        opacity: 0;
+    }
+}
+
+/* Card Flip (Flip card reveal) */
+@keyframes cardFlip {
+    0% {
+        transform: rotateY(0deg);
+    }
+    100% {
+        transform: rotateY(180deg);
+    }
+}
+
+/* Glow Border (Host Room status indicator) */
+@keyframes glowBorder {
+    0% { border-color: hsla(45, 95%, 55%, 0.2); }
+    50% { border-color: hsla(45, 95%, 55%, 0.8); }
+    100% { border-color: hsla(45, 95%, 55%, 0.2); }
+}
+
+/* Confetti Falling (Victory Screen) */
+@keyframes confettiFall {
+    0% {
+        transform: translateY(-10px) rotate(0deg);
+        opacity: 1;
+    }
+    100% {
+        transform: translateY(100vh) rotate(360deg);
+        opacity: 0;
+    }
+}
+
+/* ==========================================
+   ANIMATION CLASS UTILITIES
+   ========================================== */
+.animate-gold-pulse {
+    animation: goldPulse 2s infinite alternate;
+}
+
+.animate-slide-in-up {
+    animation: slideInUp 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-in-right {
+    animation: slideInRight 400ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-fade-in {
+    animation: fadeIn 350ms ease forwards;
+}
+
+.animate-shake {
+    animation: shake 500ms ease-in-out;
+}
+
+.animate-bounce {
+    animation: bounce 600ms cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.animate-spin {
+    animation: spin 600ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.animate-float {
+    animation: float 3s ease-in-out infinite;
+}
+
+.animate-money-fly-up {
+    animation: moneyFly 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+}
+
+.animate-card-flip {
+    animation: cardFlip 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-glow-border {
+    animation: glowBorder 2s infinite ease-in-out;
+}
+
+/* Confetti particles generator styling */
+.confetti-particle {
+    position: absolute;
+    top: -20px;
+    width: 10px;
+    height: 10px;
+    background-color: var(--color-gold);
+    border-radius: 50%;
+    animation: confettiFall 4s linear infinite;
+    pointer-events: none;
+}
+
+.confetti-particle:nth-child(2n) {
+    background-color: var(--color-info);
+    border-radius: 2px;
+}
+
+.confetti-particle:nth-child(3n) {
+    background-color: var(--color-success);
+}
+
+.confetti-particle:nth-child(4n) {
+    background-color: var(--color-danger);
+    border-radius: 4px;
+}

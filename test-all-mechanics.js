@@ -1,0 +1,279 @@
+const assert = require('assert');
+const GameEngine = require('./game/GameEngine');
+const Board = require('./game/Board');
+const Cards = require('./game/Cards');
+const { Player } = require('./game/Player');
+
+console.log('==================================================');
+console.log('🧪 Running Complete Monopoly Game Mechanics Tests 🧪');
+console.log('==================================================\n');
+
+// Mock players and settings
+const mockPlayers = [
+    { id: 'p1', name: 'Alice', avatar: '🐘', color: { hex: '#EF4444' } },
+    { id: 'p2', name: 'Bob', avatar: '🛺', color: { hex: '#3B82F6' } }
+];
+const settings = {
+    startMoney: 15000,
+    goBonus: 2000,
+    turnTimer: 0,
+    freeParkingRule: true
+};
+
+function runTest(testName, testFn) {
+    try {
+        testFn();
+        console.log(`✅ [PASS] ${testName}`);
+    } catch (err) {
+        console.error(`❌ [FAIL] ${testName}`);
+        console.error(err);
+        process.exit(1);
+    }
+}
+
+// ----------------------------------------------------
+// 1. Building Houses & Hotels Test
+// ----------------------------------------------------
+runTest('Building Houses and Hotels Mechanics', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+    
+    // Alice owns the Brown group: space 1 (คลองสาน) and space 3 (บางลำพู)
+    engine.propertyOwners[1] = 'p1';
+    engine.propertyOwners[3] = 'p1';
+    engine.players[0].properties = [1, 3];
+
+    // Alice should be able to build on space 1
+    assert.strictEqual(engine.canBuildHouse('p1', 1), true);
+    
+    // Build 1 house on space 1
+    const build1 = engine.buildHouse('p1', 1);
+    assert.strictEqual(build1.success, true);
+    assert.strictEqual(engine.houses[1], 1);
+    assert.strictEqual(engine.players[0].money, 15000 - 500); // 500 build cost
+
+    // Alice should NOT be able to build another house on space 1 yet (must build evenly)
+    assert.strictEqual(engine.canBuildHouse('p1', 1), false);
+    
+    // Alice should be able to build on space 3
+    assert.strictEqual(engine.canBuildHouse('p1', 3), true);
+    engine.buildHouse('p1', 3);
+    
+    // Now both have 1 house. Alice can build on space 1 again.
+    assert.strictEqual(engine.canBuildHouse('p1', 1), true);
+    
+    // Build up to 4 houses on both
+    engine.houses[1] = 4;
+    engine.houses[3] = 4;
+    
+    // Verify hotel upgrade is valid
+    assert.strictEqual(engine.canBuildHotel('p1', 1), true);
+    const buildHotel = engine.buildHotel('p1', 1);
+    assert.strictEqual(buildHotel.success, true);
+    assert.strictEqual(engine.houses[1], 0);
+    assert.strictEqual(engine.hotels[1], true);
+});
+
+// ----------------------------------------------------
+// 2. Mortgage and Rent Mechanics
+// ----------------------------------------------------
+runTest('Mortgage & Rent Payment System', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+
+    // Alice owns space 1 (unimproved, no group completeness)
+    engine.propertyOwners[1] = 'p1';
+    engine.players[0].properties = [1];
+    
+    // Bob lands on space 1
+    engine.players[1].position = 1;
+    const rentAmount = engine.calculateRent(1, 7);
+    assert.strictEqual(rentAmount, 20); // Base rent of Khlong San is ฿20
+
+    // Pay Rent
+    const rentPay = engine.payRent('p2', 'p1', rentAmount);
+    assert.strictEqual(rentPay.success, true);
+    assert.strictEqual(engine.players[0].money, 15000 + 20);
+    assert.strictEqual(engine.players[1].money, 15000 - 20);
+
+    // Alice mortgages space 1
+    const mort = engine.mortgageProperty('p1', 1);
+    assert.strictEqual(mort.success, true);
+    assert.strictEqual(engine.board[1].isMortgaged, true);
+    assert.strictEqual(engine.players[0].money, 15020 + 300); // Received 50% of ฿600 = ฿300
+
+    // Mortgaged property rent should be ฿0
+    assert.strictEqual(engine.calculateRent(1, 7), 0);
+
+    // Alice unmortgages space 1
+    const unmort = engine.unmortgageProperty('p1', 1);
+    assert.strictEqual(unmort.success, true);
+    assert.strictEqual(engine.board[1].isMortgaged, false);
+    assert.strictEqual(engine.players[0].money, 15320 - 330); // paid ฿330 (300 + 10%)
+});
+
+// ----------------------------------------------------
+// 3. Jail Mechanics
+// ----------------------------------------------------
+runTest('Jail Actions & Releases', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+
+    // Alice is sent to jail
+    engine.sendToJail('p1');
+    assert.strictEqual(engine.players[0].inJail, true);
+    assert.strictEqual(engine.players[0].position, 10);
+
+    // Pay jail fine
+    const payFine = engine.payJailFine('p1');
+    assert.strictEqual(payFine.success, true);
+    assert.strictEqual(engine.players[0].inJail, false);
+    assert.strictEqual(engine.players[0].money, 15000 - 500);
+
+    // Bob is sent to jail, tries rolling for double
+    engine.sendToJail('p2');
+    
+    // Mock Math.random to avoid double roll flakiness
+    let count = 0;
+    const originalRandom = Math.random;
+    Math.random = () => {
+        count++;
+        return count % 2 === 0 ? 0.1 : 0.8; // rolls 5 and 1
+    };
+    
+    // Simulate attemptJailRoll
+    const jailRoll = engine.attemptJailRoll('p2');
+    Math.random = originalRandom; // restore
+    assert.strictEqual(engine.players[1].jailTurns, 1);
+    
+    // Bob uses card to escape
+    engine.players[1].getOutOfJailCards = 1;
+    const useCard = engine.useGetOutOfJailCard('p2');
+    assert.strictEqual(useCard.success, true);
+    assert.strictEqual(engine.players[1].inJail, false);
+    assert.strictEqual(engine.players[1].getOutOfJailCards, 0);
+});
+
+// ----------------------------------------------------
+// 4. Trade Mechanics
+// ----------------------------------------------------
+runTest('Peer-to-Peer Trading System', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+
+    // Alice owns space 1, Bob owns space 5
+    engine.propertyOwners[1] = 'p1';
+    engine.players[0].properties = [1];
+    engine.propertyOwners[5] = 'p2';
+    engine.players[1].properties = [5];
+
+    // Alice proposes to swap space 1 + ฿1,000 for Bob's space 5
+    const tradeId = engine.proposeTrade('p1', 'p2', { money: 1000, properties: [1] }, { money: 0, properties: [5] });
+    assert.ok(tradeId);
+
+    // Bob accepts trade
+    const accept = engine.acceptTrade(tradeId);
+    assert.strictEqual(accept.success, true);
+
+    // Verify assets transferred correctly
+    assert.strictEqual(engine.propertyOwners[1], 'p2');
+    assert.strictEqual(engine.propertyOwners[5], 'p1');
+    assert.strictEqual(engine.players[0].money, 15000 - 1000);
+    assert.strictEqual(engine.players[1].money, 15000 + 1000);
+    assert.deepStrictEqual(engine.players[0].properties, [5]);
+    assert.deepStrictEqual(engine.players[1].properties, [1]);
+});
+
+// ----------------------------------------------------
+// 5. Auction System
+// ----------------------------------------------------
+runTest('Property Auctioning Mechanics', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+
+    // Start auction on space 6 (เยาวราช)
+    const auction = engine.startAuction(6);
+    assert.ok(auction);
+    assert.strictEqual(auction.position, 6);
+
+    // Alice bids ฿200
+    const bid1 = engine.placeBid('p1', 200);
+    assert.strictEqual(bid1.success, true);
+    assert.strictEqual(engine.activeAuction.highestBid, 200);
+
+    // Bob bids ฿100 (should fail, must be higher)
+    const bid2 = engine.placeBid('p2', 100);
+    assert.strictEqual(bid2.success, false);
+
+    // Bob bids ฿300
+    const bid3 = engine.placeBid('p2', 300);
+    assert.strictEqual(bid3.success, true);
+
+    // End Auction
+    const resolve = engine.endAuction();
+    assert.strictEqual(resolve.winnerId, 'p2');
+    assert.strictEqual(resolve.finalPrice, 300);
+    assert.strictEqual(engine.propertyOwners[6], 'p2');
+    assert.strictEqual(engine.players[1].money, 15000 - 300);
+});
+
+// ----------------------------------------------------
+// 6. Bankruptcy Mechanics
+// ----------------------------------------------------
+runTest('Player Bankruptcy & Liquidation', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+
+    // Alice is low on cash, owns property space 1
+    engine.players[0].money = 100;
+    engine.propertyOwners[1] = 'p1';
+    engine.players[0].properties = [1]; // mortgage value: 300
+
+    // Bob is creditor. Alice owes Bob ฿2,000 rent
+    // Process the rent payment through engine.payRent
+    engine.payRent('p1', 'p2', 2000);
+
+    // Alice net worth: -1900 (cash) + 300 (mortgage value) = -1600.
+    // alice cannot afford the debt.
+    assert.strictEqual(engine.getPlayerNetWorth('p1'), -1600);
+    assert.strictEqual(engine.checkBankruptcy('p1'), false); // Cannot cover debt of 2000
+
+    // Declare Bankruptcy to Bob
+    engine.declareBankruptcy('p1', 'p2');
+    
+    // Alice is bankrupt. Properties and remaining cash transfer to Bob.
+    assert.strictEqual(engine.players[0].isBankrupt, true);
+    assert.strictEqual(engine.players[0].money, 0);
+    assert.strictEqual(engine.players[0].properties.length, 0);
+
+    assert.strictEqual(engine.propertyOwners[1], 'p2');
+    assert.strictEqual(engine.players[1].money, 15000 + 100); // got Alice's ฿100 cash
+    assert.ok(engine.players[1].properties.includes(1));      // got Alice's property 1
+
+    // Game Over check should succeed (Bob wins)
+    const gameOver = engine.checkGameOver();
+    assert.strictEqual(gameOver.isOver, true);
+    assert.strictEqual(gameOver.winnerId, 'p2');
+});
+
+// ----------------------------------------------------
+// 7. Card Effects Mechanics
+// ----------------------------------------------------
+runTest('Chance & Community Chest Card Effects Loop', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+
+    // Mock cards and test execution of ALL action types
+    const testCards = [
+        { id: 't1', effect: { action: 'move-to', destination: 39, collectGo: true } },
+        { id: 't2', effect: { action: 'move-back', amount: 3 } },
+        { id: 't3', effect: { action: 'receive', amount: 1000 } },
+        { id: 't4', effect: { action: 'pay', amount: 500 } },
+        { id: 't5', effect: { action: 'pay-all', amount: 200 } },
+        { id: 't6', effect: { action: 'collect-all', amount: 100 } },
+        { id: 't7', effect: { action: 'repair', house: 250, hotel: 1000 } }
+    ];
+
+    testCards.forEach(card => {
+        // Run executeCardEffect for Alice
+        const result = engine.executeCardEffect('p1', card);
+        assert.ok(Array.isArray(result));
+    });
+});
+
+console.log('\n==================================================');
+console.log('🎉 ALL GAME MECHANICS TESTS COMPLETED SUCCESSFULLY! 🎉');
+console.log('==================================================\n');

@@ -1,0 +1,967 @@
+const GameEngine = require('./GameEngine');
+const { PLAYER_COLORS } = require('./Player');
+
+class RoomManager {
+    constructor(io) {
+        this.io = io;
+        this.rooms = new Map(); // roomCode -> roomState
+        this.socketToPlayer = new Map(); // socketId -> { roomCode, playerId }
+        this.disconnectTimers = new Map(); // playerId -> NodeJS.Timeout
+    }
+
+    generateRoomCode() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        if (this.rooms.has(code)) {
+            return this.generateRoomCode();
+        }
+        return code;
+    }
+
+    getRoomPlayersForClient(room) {
+        return room.players.map(p => ({
+            id: p.id,
+            name: p.name,
+            avatar: p.avatar,
+            color: p.color,
+            ready: p.ready,
+            isConnected: p.isConnected,
+            isHost: p.id === room.host
+        }));
+    }
+
+    getRoomStateForClient(room) {
+        return {
+            code: room.code,
+            host: room.host,
+            players: this.getRoomPlayersForClient(room),
+            settings: room.settings,
+            status: room.status,
+            gameState: room.gameEngine ? room.gameEngine.getPublicState() : null
+        };
+    }
+
+    createRoom(socket, playerName, avatar) {
+        const roomCode = this.generateRoomCode();
+        const playerId = 'p_' + Math.random().toString(36).substr(2, 9);
+        const playerColor = PLAYER_COLORS[0]; // First player is red (host)
+
+        const newRoom = {
+            code: roomCode,
+            host: playerId,
+            players: [
+                {
+                    id: playerId,
+                    name: playerName,
+                    avatar: avatar,
+                    color: playerColor,
+                    ready: true, // Host is ready by default
+                    isConnected: true,
+                    socketId: socket.id
+                }
+            ],
+            settings: {
+                startMoney: 15000,
+                goBonus: 2000,
+                turnTimer: 0, // 0 = unlimited
+                freeParkingRule: false
+            },
+            gameEngine: null,
+            status: 'waiting',
+            auctionState: null,
+            auctionTimer: null
+        };
+
+        this.rooms.set(roomCode, newRoom);
+        this.socketToPlayer.set(socket.id, { roomCode, playerId });
+        socket.join(roomCode);
+
+        socket.emit('room-created', { roomCode, playerId });
+        this.io.to(roomCode).emit('room-update', { players: this.getRoomPlayersForClient(newRoom) });
+    }
+
+    joinRoom(socket, roomCode, playerName, avatar, playerId) {
+        if (!roomCode) {
+            socket.emit('error-msg', { message: 'Room code is required / ต้องระบุรหัสห้อง' });
+            return;
+        }
+        roomCode = roomCode.toUpperCase();
+        const room = this.rooms.get(roomCode);
+        if (!room) {
+            socket.emit('error-msg', { message: 'Room not found / ไม่พบห้องนี้' });
+            return;
+        }
+
+        // Handle Reconnection
+        if (playerId) {
+            const existingPlayer = room.players.find(p => p.id === playerId);
+            if (existingPlayer) {
+                if (this.disconnectTimers.has(playerId)) {
+                    clearTimeout(this.disconnectTimers.get(playerId));
+                    this.disconnectTimers.delete(playerId);
+                }
+
+                // Remove old socket mapping
+                this.socketToPlayer.delete(existingPlayer.socketId);
+
+                // Update details
+                existingPlayer.isConnected = true;
+                existingPlayer.socketId = socket.id;
+                this.socketToPlayer.set(socket.id, { roomCode, playerId });
+                socket.join(roomCode);
+
+                socket.emit('room-joined', { roomState: this.getRoomStateForClient(room), playerId });
+                this.io.to(roomCode).emit('player-reconnected', { playerId });
+
+                if (room.status === 'playing' && room.gameEngine) {
+                    socket.emit('game-state-sync', { gameState: room.gameEngine.getFullState() });
+                } else {
+                    this.io.to(roomCode).emit('room-update', { players: this.getRoomPlayersForClient(room) });
+                }
+                return;
+            }
+        }
+
+        // Regular Join Flow
+        if (room.status !== 'waiting') {
+            socket.emit('error-msg', { message: 'Game has already started / เกมเริ่มเล่นแล้ว' });
+            return;
+        }
+
+        if (room.players.length >= 6) {
+            socket.emit('error-msg', { message: 'Room is full / ห้องเต็มแล้ว' });
+            return;
+        }
+
+        const newPlayerId = 'p_' + Math.random().toString(36).substr(2, 9);
+        const usedColors = room.players.map(p => p.color.hex);
+        const playerColor = PLAYER_COLORS.find(c => !usedColors.includes(c.hex)) || PLAYER_COLORS[room.players.length % PLAYER_COLORS.length];
+
+        const newPlayer = {
+            id: newPlayerId,
+            name: playerName,
+            avatar: avatar,
+            color: playerColor,
+            ready: false,
+            isConnected: true,
+            socketId: socket.id
+        };
+
+        room.players.push(newPlayer);
+        this.socketToPlayer.set(socket.id, { roomCode, playerId: newPlayerId });
+        socket.join(roomCode);
+
+        socket.emit('room-joined', { roomState: this.getRoomStateForClient(room), playerId: newPlayerId });
+        this.io.to(roomCode).emit('room-update', { players: this.getRoomPlayersForClient(room) });
+    }
+
+    leaveRoom(socket) {
+        const association = this.socketToPlayer.get(socket.id);
+        if (!association) return;
+
+        const { roomCode, playerId } = association;
+        this.socketToPlayer.delete(socket.id);
+
+        const room = this.rooms.get(roomCode);
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (!player) return;
+
+        player.isConnected = false;
+
+        if (room.status === 'waiting') {
+            room.players = room.players.filter(p => p.id !== playerId);
+            if (room.players.length === 0) {
+                this.rooms.delete(roomCode);
+                return;
+            }
+            if (room.host === playerId) {
+                room.host = room.players[0].id;
+                room.players[0].ready = true; // Host must be ready
+            }
+            this.io.to(roomCode).emit('room-update', { players: this.getRoomPlayersForClient(room) });
+        } else {
+            this.io.to(roomCode).emit('player-disconnected', { playerId });
+
+            // Start a 5-minute timeout for reconnection
+            const timer = setTimeout(() => {
+                this.handlePlayerTimeout(roomCode, playerId);
+            }, 5 * 60 * 1000);
+
+            this.disconnectTimers.set(playerId, timer);
+        }
+    }
+
+    handlePlayerTimeout(roomCode, playerId) {
+        this.disconnectTimers.delete(playerId);
+        const room = this.rooms.get(roomCode);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+
+        const player = room.gameEngine.players.find(p => p.id === playerId);
+        if (!player || player.isBankrupt) return;
+
+        // Force bankruptcy to the bank due to disconnection timeout
+        room.gameEngine.declareBankruptcy(playerId, null);
+        this.io.to(roomCode).emit('player-bankrupt', { playerId, reason: 'timeout' });
+        this.io.to(roomCode).emit('game-state-sync', { gameState: room.gameEngine.getFullState() });
+
+        const gameOverResult = room.gameEngine.checkGameOver();
+        if (gameOverResult.isOver) {
+            room.status = 'finished';
+            this.io.to(roomCode).emit('game-over', { winnerId: gameOverResult.winnerId, stats: room.gameEngine.getStats() });
+        }
+    }
+
+    handleReady(socket, ready) {
+        const association = this.socketToPlayer.get(socket.id);
+        if (!association) return;
+        const { roomCode, playerId } = association;
+
+        const room = this.rooms.get(roomCode);
+        if (!room || room.status !== 'waiting') return;
+
+        const player = room.players.find(p => p.id === playerId);
+        if (player) {
+            player.ready = ready;
+            this.io.to(roomCode).emit('room-update', { players: this.getRoomPlayersForClient(room) });
+        }
+    }
+
+    handleUpdateSettings(socket, settings) {
+        const association = this.socketToPlayer.get(socket.id);
+        if (!association) return;
+        const { roomCode, playerId } = association;
+
+        const room = this.rooms.get(roomCode);
+        if (!room || room.status !== 'waiting' || room.host !== playerId) return;
+
+        room.settings = {
+            startMoney: Number(settings.startMoney) || 15000,
+            goBonus: Number(settings.goBonus) || 2000,
+            turnTimer: Number(settings.turnTimer) || 0,
+            freeParkingRule: !!settings.freeParkingRule
+        };
+
+        this.io.to(roomCode).emit('room-settings-updated', { settings: room.settings });
+    }
+
+    startGame(socket) {
+        const association = this.socketToPlayer.get(socket.id);
+        if (!association) return;
+        const { roomCode, playerId } = association;
+
+        const room = this.rooms.get(roomCode);
+        if (!room || room.status !== 'waiting') return;
+
+        if (room.host !== playerId) {
+            socket.emit('error-msg', { message: 'Only the host can start the game / เฉพาะโฮสต์เท่านั้นที่เริ่มเกมได้' });
+            return;
+        }
+
+        if (room.players.length < 2) {
+            socket.emit('error-msg', { message: 'At least 2 players are required / ต้องการผู้เล่นอย่างน้อย 2 คน' });
+            return;
+        }
+
+        const allReady = room.players.every(p => p.ready || p.id === room.host);
+        if (!allReady) {
+            socket.emit('error-msg', { message: 'All players must be ready / ผู้เล่นทุกคนต้องพร้อมก่อนเริ่มเกม' });
+            return;
+        }
+
+        room.gameEngine = new GameEngine(room.players, room.settings);
+        room.status = 'playing';
+
+        this.io.to(roomCode).emit('game-started', { gameState: room.gameEngine.getFullState() });
+    }
+
+    getRoomForSocket(socket) {
+        const association = this.socketToPlayer.get(socket.id);
+        if (!association) return null;
+        return this.rooms.get(association.roomCode);
+    }
+
+    handleRollDice(socket) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+        
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId) {
+            socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
+
+        if (engine.turnPhase !== 'roll') {
+            socket.emit('error-msg', { message: 'You cannot roll the dice in this phase / คุณยังทอยลูกเต๋าไม่ได้ในเฟสนี้' });
+            return;
+        }
+
+        const result = engine.rollDice();
+
+        // Broadcast dice rolled
+        this.io.to(room.code).emit('dice-rolled', {
+            playerId: currentPlayer.id,
+            dice1: result.dice1,
+            dice2: result.dice2,
+            isDouble: result.isDouble
+        });
+
+        if (result.goToJail) {
+            this.io.to(room.code).emit('player-jailed', { playerId: currentPlayer.id, reason: 'three_doubles' });
+        } else {
+            // Broadcast player moved
+            this.io.to(room.code).emit('player-moved', {
+                playerId: currentPlayer.id,
+                from: result.oldPosition,
+                to: result.newPosition,
+                passedGo: result.passedGo
+            });
+
+            if (result.passedGo) {
+                this.io.to(room.code).emit('money-changed', {
+                    playerId: currentPlayer.id,
+                    amount: engine.settings.goBonus,
+                    reason: 'passed_go',
+                    money: currentPlayer.money
+                });
+            }
+
+            // Process Landing outcomes
+            const landing = result.landingEffect;
+            if (landing) {
+                if (landing.type === 'tax') {
+                    this.io.to(room.code).emit('money-changed', {
+                        playerId: currentPlayer.id,
+                        amount: -landing.amount,
+                        reason: landing.taxName === 'Luxury Tax' ? 'luxury_tax' : 'income_tax',
+                        money: currentPlayer.money
+                    });
+                    if (engine.settings.freeParkingRule) {
+                        this.io.to(room.code).emit('free-parking-pot-updated', { pot: engine.freeParkingPot });
+                    }
+                } else if (landing.type === 'rent') {
+                    this.io.to(room.code).emit('money-changed', {
+                        playerId: currentPlayer.id,
+                        amount: -landing.amount,
+                        reason: 'rent_paid',
+                        money: engine.players.find(p => p.id === currentPlayer.id).money
+                    });
+                    this.io.to(room.code).emit('money-changed', {
+                        playerId: landing.ownerId,
+                        amount: landing.amount,
+                        reason: 'rent_received',
+                        money: engine.players.find(p => p.id === landing.ownerId).money
+                    });
+                } else if (landing.type === 'card') {
+                    this.io.to(room.code).emit('card-drawn', {
+                        playerId: currentPlayer.id,
+                        cardType: landing.cardType,
+                        card: landing.card
+                    });
+
+                    // Broadcast all updates triggered by card effects
+                    if (landing.cardResults) {
+                        landing.cardResults.forEach(r => {
+                            if (r.type === 'money') {
+                                this.io.to(room.code).emit('money-changed', {
+                                    playerId: r.playerId,
+                                    amount: r.amount,
+                                    reason: 'card_effect',
+                                    money: engine.players.find(p => p.id === r.playerId).money
+                                });
+                            } else if (r.type === 'move') {
+                                this.io.to(room.code).emit('player-moved', {
+                                    playerId: r.playerId,
+                                    from: r.from,
+                                    to: r.to,
+                                    passedGo: r.passedGo
+                                });
+                                if (r.passedGo) {
+                                    this.io.to(room.code).emit('money-changed', {
+                                        playerId: r.playerId,
+                                        amount: engine.settings.goBonus,
+                                        reason: 'passed_go',
+                                        money: engine.players.find(p => p.id === r.playerId).money
+                                    });
+                                }
+                            } else if (r.type === 'jail') {
+                                this.io.to(room.code).emit('player-jailed', { playerId: r.playerId, reason: 'card_effect' });
+                            }
+                        });
+                    }
+                } else if (landing.type === 'go-to-jail') {
+                    this.io.to(room.code).emit('player-jailed', { playerId: currentPlayer.id, reason: 'landed_jail_square' });
+                } else if (landing.type === 'free-parking') {
+                    if (engine.settings.freeParkingRule && landing.collected > 0) {
+                        this.io.to(room.code).emit('money-changed', {
+                            playerId: currentPlayer.id,
+                            amount: landing.collected,
+                            reason: 'free_parking',
+                            money: currentPlayer.money
+                        });
+                        this.io.to(room.code).emit('free-parking-pot-updated', { pot: 0 });
+                    }
+                }
+            }
+        }
+
+        // Check if current player goes bankrupt due to landed effects (tax/rent/cards)
+        this.checkAndResolveBankruptcy(room, currentPlayer.id);
+
+        this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+    }
+
+    checkAndResolveBankruptcy(room, playerId) {
+        const engine = room.gameEngine;
+        const player = engine.players.find(p => p.id === playerId);
+        if (player && player.money < 0) {
+            // Check if player has anything to sell/mortgage
+            const hasAssets = engine.checkBankruptcy(playerId);
+            if (!hasAssets) {
+                // Instantly declare bankruptcy if no assets can cover the debt
+                const creditorId = engine.propertyOwners[player.position] || null;
+                engine.declareBankruptcy(playerId, creditorId);
+                this.io.to(room.code).emit('player-bankrupt', { playerId, reason: 'debt' });
+                
+                const gameOverResult = engine.checkGameOver();
+                if (gameOverResult.isOver) {
+                    room.status = 'finished';
+                    this.io.to(room.code).emit('game-over', { winnerId: gameOverResult.winnerId, stats: engine.getStats() });
+                }
+            }
+        }
+    }
+
+    handleBuyProperty(socket, position) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId) {
+            socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
+
+        if (position !== currentPlayer.position) {
+            socket.emit('error-msg', { message: 'You are not standing on this property / คุณไม่ได้อยู่บนที่ดินนี้' });
+            return;
+        }
+
+        const result = engine.buyProperty(currentPlayer.id, position);
+        if (result.success) {
+            this.io.to(room.code).emit('property-bought', {
+                playerId: currentPlayer.id,
+                position: position,
+                cost: result.cost
+            });
+            this.io.to(room.code).emit('money-changed', {
+                playerId: currentPlayer.id,
+                amount: -result.cost,
+                reason: 'buy_property',
+                money: currentPlayer.money
+            });
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        } else {
+            socket.emit('error-msg', { message: 'Cannot buy this property / ไม่สามารถซื้อที่ดินนี้ได้' });
+        }
+    }
+
+    handleDeclineProperty(socket) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId) {
+            socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
+
+        const position = currentPlayer.position;
+        const auction = engine.startAuction(position);
+        if (auction) {
+            room.auctionState = auction;
+            this.io.to(room.code).emit('auction-start', {
+                position: position,
+                startPrice: 0,
+                bids: []
+            });
+
+            this.resetAuctionTimer(room);
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        }
+    }
+
+    resetAuctionTimer(room) {
+        if (room.auctionTimer) {
+            clearTimeout(room.auctionTimer);
+        }
+        room.auctionTimer = setTimeout(() => {
+            this.resolveAuction(room);
+        }, 10000); // 10 seconds for bidding
+    }
+
+    handlePlaceBid(socket, amount) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine || !room.auctionState) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const playerId = association.playerId;
+        const engine = room.gameEngine;
+
+        const bidder = engine.players.find(p => p.id === playerId);
+        if (!bidder || bidder.isBankrupt) return;
+
+        const result = engine.placeBid(playerId, amount);
+        if (result.success) {
+            this.io.to(room.code).emit('bid-placed', {
+                playerId: playerId,
+                amount: amount
+            });
+            this.resetAuctionTimer(room);
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        } else {
+            socket.emit('error-msg', { message: result.message || 'Invalid bid / ยอดประมูลไม่ถูกต้อง' });
+        }
+    }
+
+    resolveAuction(room) {
+        if (!room.auctionState || !room.gameEngine) return;
+        
+        const engine = room.gameEngine;
+        const result = engine.endAuction();
+        
+        if (result.winnerId) {
+            this.io.to(room.code).emit('property-bought', {
+                playerId: result.winnerId,
+                position: result.position,
+                cost: result.finalPrice
+            });
+            this.io.to(room.code).emit('money-changed', {
+                playerId: result.winnerId,
+                amount: -result.finalPrice,
+                reason: 'auction_win',
+                money: engine.players.find(p => p.id === result.winnerId).money
+            });
+        }
+        
+        this.io.to(room.code).emit('auction-end', {
+            winnerId: result.winnerId,
+            position: result.position,
+            finalPrice: result.finalPrice
+        });
+
+        room.auctionState = null;
+        room.auctionTimer = null;
+        this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+    }
+
+    handleBuildHouse(socket, position) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const result = engine.buildHouse(association.playerId, position);
+        if (result.success) {
+            this.io.to(room.code).emit('house-built', {
+                position: position,
+                houses: result.totalHouses
+            });
+            this.io.to(room.code).emit('money-changed', {
+                playerId: association.playerId,
+                amount: -result.cost,
+                reason: 'build_house',
+                money: engine.players.find(p => p.id === association.playerId).money
+            });
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        } else {
+            socket.emit('error-msg', { message: result.message || 'Cannot build house / ไม่สามารถสร้างบ้านได้' });
+        }
+    }
+
+    handleBuildHotel(socket, position) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const result = engine.buildHotel(association.playerId, position);
+        if (result.success) {
+            this.io.to(room.code).emit('hotel-built', {
+                position: position
+            });
+            this.io.to(room.code).emit('money-changed', {
+                playerId: association.playerId,
+                amount: -result.cost,
+                reason: 'build_hotel',
+                money: engine.players.find(p => p.id === association.playerId).money
+            });
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        } else {
+            socket.emit('error-msg', { message: result.message || 'Cannot build hotel / ไม่สามารถสร้างโรงแรมได้' });
+        }
+    }
+
+    handleMortgageProperty(socket, position) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const result = engine.mortgageProperty(association.playerId, position);
+        if (result.success) {
+            this.io.to(room.code).emit('property-mortgaged', {
+                position: position
+            });
+            this.io.to(room.code).emit('money-changed', {
+                playerId: association.playerId,
+                amount: result.income,
+                reason: 'mortgage',
+                money: engine.players.find(p => p.id === association.playerId).money
+            });
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        } else {
+            socket.emit('error-msg', { message: result.message || 'Cannot mortgage / ไม่สามารถจำนองได้' });
+        }
+    }
+
+    handleUnmortgageProperty(socket, position) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const result = engine.unmortgageProperty(association.playerId, position);
+        if (result.success) {
+            this.io.to(room.code).emit('property-unmortgaged', {
+                position: position
+            });
+            this.io.to(room.code).emit('money-changed', {
+                playerId: association.playerId,
+                amount: -result.cost,
+                reason: 'unmortgage',
+                money: engine.players.find(p => p.id === association.playerId).money
+            });
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        } else {
+            socket.emit('error-msg', { message: result.message || 'Cannot unmortgage / ไม่สามารถถอนจำนองได้' });
+        }
+    }
+
+    handleEndTurn(socket) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId) {
+            socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
+
+        const prevPlayerId = currentPlayer.id;
+        const nextPlayerId = engine.endTurn();
+
+        this.io.to(room.code).emit('turn-changed', { currentPlayerId: nextPlayerId });
+        this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+    }
+
+    handleTradePropose(socket, targetId, offer, request) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const tradeId = engine.proposeTrade(association.playerId, targetId, offer, request);
+        if (tradeId) {
+            const targetPlayer = room.players.find(p => p.id === targetId);
+            if (targetPlayer && targetPlayer.socketId) {
+                this.io.to(targetPlayer.socketId).emit('trade-proposed', {
+                    tradeId,
+                    proponentId: association.playerId,
+                    offer,
+                    request
+                });
+            }
+        } else {
+            socket.emit('error-msg', { message: 'Invalid trade offer / ข้อเสนอแลกเปลี่ยนไม่ถูกต้อง' });
+        }
+    }
+
+    handleTradeRespond(socket, tradeId, accepted) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const engine = room.gameEngine;
+
+        if (accepted) {
+            const result = engine.acceptTrade(tradeId);
+            if (result && result.success) {
+                this.io.to(room.code).emit('trade-completed', {
+                    tradeId,
+                    accepted: true,
+                    result
+                });
+                this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+            } else {
+                socket.emit('error-msg', { message: 'Failed to complete trade / การแลกเปลี่ยนล้มเหลว' });
+            }
+        } else {
+            engine.declineTrade(tradeId);
+            this.io.to(room.code).emit('trade-completed', {
+                tradeId,
+                accepted: false
+            });
+        }
+    }
+
+    handleSendChat(socket, message) {
+        const room = this.getRoomForSocket(socket);
+        if (!room) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const player = room.players.find(p => p.id === association.playerId);
+        if (!player) return;
+
+        this.io.to(room.code).emit('chat-message', {
+            playerId: player.id,
+            playerName: player.name,
+            color: player.color.hex,
+            message: message,
+            timestamp: Date.now()
+        });
+    }
+
+    handleSendReaction(socket, emoji) {
+        const room = this.getRoomForSocket(socket);
+        if (!room) return;
+        const association = this.socketToPlayer.get(socket.id);
+
+        this.io.to(room.code).emit('reaction', {
+            playerId: association.playerId,
+            emoji: emoji
+        });
+    }
+
+    handleJailAction(socket, action) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId) {
+            socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
+
+        if (action === 'pay') {
+            const result = engine.payJailFine(currentPlayer.id);
+            if (result.success) {
+                this.io.to(room.code).emit('player-freed', { playerId: currentPlayer.id, method: 'pay' });
+                this.io.to(room.code).emit('money-changed', {
+                    playerId: currentPlayer.id,
+                    amount: -500,
+                    reason: 'jail_fine',
+                    money: currentPlayer.money
+                });
+                this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+            } else {
+                socket.emit('error-msg', { message: 'Cannot afford fine / เงินไม่พอจ่ายค่าปรับ' });
+            }
+        } else if (action === 'card') {
+            const result = engine.useGetOutOfJailCard(currentPlayer.id);
+            if (result.success) {
+                this.io.to(room.code).emit('player-freed', { playerId: currentPlayer.id, method: 'card' });
+                this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+            } else {
+                socket.emit('error-msg', { message: 'No card available / ไม่มีบัตรออกจากคุก' });
+            }
+        } else if (action === 'roll') {
+            const result = engine.attemptJailRoll(currentPlayer.id);
+            this.io.to(room.code).emit('dice-rolled', {
+                playerId: currentPlayer.id,
+                dice1: result.dice1,
+                dice2: result.dice2,
+                isDouble: result.isDouble
+            });
+
+            if (result.success) {
+                this.io.to(room.code).emit('player-freed', { playerId: currentPlayer.id, method: 'roll' });
+                this.io.to(room.code).emit('player-moved', {
+                    playerId: currentPlayer.id,
+                    from: result.oldPosition,
+                    to: result.newPosition,
+                    passedGo: result.passedGo
+                });
+
+                if (result.passedGo) {
+                    this.io.to(room.code).emit('money-changed', {
+                        playerId: currentPlayer.id,
+                        amount: engine.settings.goBonus,
+                        reason: 'passed_go',
+                        money: currentPlayer.money
+                    });
+                }
+
+                // Landing processing for jail roll release
+                const landing = result.landingEffect;
+                if (landing) {
+                    if (landing.type === 'tax') {
+                        this.io.to(room.code).emit('money-changed', {
+                            playerId: currentPlayer.id,
+                            amount: -landing.amount,
+                            reason: landing.taxName === 'Luxury Tax' ? 'luxury_tax' : 'income_tax',
+                            money: currentPlayer.money
+                        });
+                        if (engine.settings.freeParkingRule) {
+                            this.io.to(room.code).emit('free-parking-pot-updated', { pot: engine.freeParkingPot });
+                        }
+                    } else if (landing.type === 'rent') {
+                        this.io.to(room.code).emit('money-changed', {
+                            playerId: currentPlayer.id,
+                            amount: -landing.amount,
+                            reason: 'rent_paid',
+                            money: engine.players.find(p => p.id === currentPlayer.id).money
+                        });
+                        this.io.to(room.code).emit('money-changed', {
+                            playerId: landing.ownerId,
+                            amount: landing.amount,
+                            reason: 'rent_received',
+                            money: engine.players.find(p => p.id === landing.ownerId).money
+                        });
+                    } else if (landing.type === 'card') {
+                        this.io.to(room.code).emit('card-drawn', {
+                            playerId: currentPlayer.id,
+                            cardType: landing.cardType,
+                            card: landing.card
+                        });
+
+                        if (landing.cardResults) {
+                            landing.cardResults.forEach(r => {
+                                if (r.type === 'money') {
+                                    this.io.to(room.code).emit('money-changed', {
+                                        playerId: r.playerId,
+                                        amount: r.amount,
+                                        reason: 'card_effect',
+                                        money: engine.players.find(p => p.id === r.playerId).money
+                                    });
+                                } else if (r.type === 'move') {
+                                    this.io.to(room.code).emit('player-moved', {
+                                        playerId: r.playerId,
+                                        from: r.from,
+                                        to: r.to,
+                                        passedGo: r.passedGo
+                                    });
+                                    if (r.passedGo) {
+                                        this.io.to(room.code).emit('money-changed', {
+                                            playerId: r.playerId,
+                                            amount: engine.settings.goBonus,
+                                            reason: 'passed_go',
+                                            money: engine.players.find(p => p.id === r.playerId).money
+                                        });
+                                    }
+                                } else if (r.type === 'jail') {
+                                    this.io.to(room.code).emit('player-jailed', { playerId: r.playerId, reason: 'card_effect' });
+                                }
+                            });
+                        }
+                    }
+                }
+            } else {
+                // If it was the 3rd fail, player is forced to pay 500 and moves
+                if (result.forcedPay) {
+                    this.io.to(room.code).emit('player-freed', { playerId: currentPlayer.id, method: 'forced_pay' });
+                    this.io.to(room.code).emit('money-changed', {
+                        playerId: currentPlayer.id,
+                        amount: -500,
+                        reason: 'jail_fine',
+                        money: currentPlayer.money
+                    });
+                    this.io.to(room.code).emit('player-moved', {
+                        playerId: currentPlayer.id,
+                        from: result.oldPosition,
+                        to: result.newPosition,
+                        passedGo: result.passedGo
+                    });
+                }
+            }
+
+            this.checkAndResolveBankruptcy(room, currentPlayer.id);
+            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        }
+    }
+
+    handleSocket(socket) {
+        socket.on('create-room', ({ playerName, avatar }) => {
+            this.createRoom(socket, playerName, avatar);
+        });
+        socket.on('join-room', ({ roomCode, playerName, avatar, playerId }) => {
+            this.joinRoom(socket, roomCode, playerName, avatar, playerId);
+        });
+        socket.on('player-ready', ({ ready }) => {
+            this.handleReady(socket, ready);
+        });
+        socket.on('update-settings', (settings) => {
+            this.handleUpdateSettings(socket, settings);
+        });
+        socket.on('start-game', () => {
+            this.startGame(socket);
+        });
+        socket.on('roll-dice', () => {
+            this.handleRollDice(socket);
+        });
+        socket.on('buy-property', ({ position }) => {
+            this.handleBuyProperty(socket, position);
+        });
+        socket.on('decline-property', () => {
+            this.handleDeclineProperty(socket);
+        });
+        socket.on('place-bid', ({ amount }) => {
+            this.handlePlaceBid(socket, amount);
+        });
+        socket.on('build-house', ({ position }) => {
+            this.handleBuildHouse(socket, position);
+        });
+        socket.on('build-hotel', ({ position }) => {
+            this.handleBuildHotel(socket, position);
+        });
+        socket.on('mortgage-property', ({ position }) => {
+            this.handleMortgageProperty(socket, position);
+        });
+        socket.on('unmortgage-property', ({ position }) => {
+            this.handleUnmortgageProperty(socket, position);
+        });
+        socket.on('end-turn', () => {
+            this.handleEndTurn(socket);
+        });
+        socket.on('trade-propose', ({ targetId, offer, request }) => {
+            this.handleTradePropose(socket, targetId, offer, request);
+        });
+        socket.on('trade-respond', ({ tradeId, accepted }) => {
+            this.handleTradeRespond(socket, tradeId, accepted);
+        });
+        socket.on('send-chat', ({ message }) => {
+            this.handleSendChat(socket, message);
+        });
+        socket.on('send-reaction', ({ emoji }) => {
+            this.handleSendReaction(socket, emoji);
+        });
+        socket.on('jail-action', ({ action }) => {
+            this.handleJailAction(socket, action);
+        });
+        socket.on('disconnect', () => {
+            this.leaveRoom(socket);
+        });
+    }
+}
+
+module.exports = RoomManager;
