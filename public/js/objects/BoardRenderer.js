@@ -28,56 +28,63 @@ export default class BoardRenderer {
     createBoard() {
         // Draw main board background first
         const boardBg = this.scene.add.graphics();
-        boardBg.fillStyle(0x1e293b, 1); // Dark slate
+        boardBg.fillStyle(0x0b0f19, 1); // Dark theme #0b0f19
         boardBg.lineStyle(4, 0xd4af37, 1); // Gold outer boundary
         boardBg.fillRoundedRect(this.offsetX, this.offsetY, this.boardSize, this.boardSize, 16);
         boardBg.strokeRoundedRect(this.offsetX, this.offsetY, this.boardSize, this.boardSize, 16);
 
         // Draw inner board background (center area)
         const innerSize = this.boardSize - 2 * BOARD_LAYOUT.CORNER_SIZE;
-        const innerBg = this.scene.add.graphics();
-        innerBg.fillStyle(0x0f172a, 1); // Deep slate
-        innerBg.lineStyle(2, 0x334155, 0.7); // Subtle border
-        innerBg.fillRoundedRect(
-            this.offsetX + BOARD_LAYOUT.CORNER_SIZE,
-            this.offsetY + BOARD_LAYOUT.CORNER_SIZE,
-            innerSize,
-            innerSize,
-            8
+        
+        const centerImage = this.scene.add.image(
+            this.offsetX + this.boardSize / 2,
+            this.offsetY + this.boardSize / 2,
+            'board_bg'
         );
-        innerBg.strokeRoundedRect(
+        centerImage.setDisplaySize(innerSize, innerSize);
+        // Add neon glow to the center image
+        centerImage.setTint(0xffffff);
+        
+        // Add an outline for crisp edges
+        const innerBg = this.scene.add.graphics();
+        innerBg.lineStyle(3, 0xd4af37, 1); // Solid gold border
+        innerBg.strokeRect(
             this.offsetX + BOARD_LAYOUT.CORNER_SIZE,
             this.offsetY + BOARD_LAYOUT.CORNER_SIZE,
             innerSize,
-            innerSize,
-            8
+            innerSize
         );
 
-        // Add bilingual game name in center
-        this.scene.add.text(
+        // Center titles
+        const centerTh = this.scene.add.text(
             this.offsetX + this.boardSize / 2,
-            this.offsetY + this.boardSize / 2 - 30,
+            this.offsetY + this.boardSize / 2 - 45,
             'เกมเศรษฐี',
             {
                 fontFamily: 'Noto Sans Thai, sans-serif',
-                fontSize: '44px',
-                fontWeight: 'bold',
-                color: '#EAB308'
+                fontSize: '48px',
+                fontWeight: '900',
+                color: '#d4af37',
+                stroke: '#000000',
+                strokeThickness: 6
             }
-        ).setOrigin(0.5).setAlpha(0.65);
+        ).setOrigin(0.5);
+        centerTh.setShadow(0, 0, '#d4af37', 20, false, true);
 
-        this.scene.add.text(
+        const centerEn = this.scene.add.text(
             this.offsetX + this.boardSize / 2,
-            this.offsetY + this.boardSize / 2 + 15,
-            'SETTHI ONLINE',
+            this.offsetY + this.boardSize / 2 + 45,
+            'S E T T H I   O N L I N E',
             {
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '20px',
+                fontFamily: 'Outfit, Inter, sans-serif',
+                fontSize: '24px',
                 fontWeight: '800',
-                color: '#FFFFFF',
-                letterSpacing: 2
+                color: '#ffffff',
+                stroke: '#000000',
+                strokeThickness: 4
             }
-        ).setOrigin(0.5).setAlpha(0.4);
+        ).setOrigin(0.5);
+        centerEn.setShadow(0, 0, '#00f2fe', 15, false, true);
 
         // Render each of the 40 squares
         BOARD_SQUARES.forEach(sq => {
@@ -99,8 +106,8 @@ export default class BoardRenderer {
 
             // Draw tile background shape
             const bg = this.scene.add.graphics();
-            bg.fillStyle(0x0f172a, 1); // Dark background
-            bg.lineStyle(1.5, 0x334155, 0.8); // outline
+            bg.fillStyle(0x0b0f19, 1); // Dark background
+            bg.lineStyle(1.5, 0xd4af37, 0.8); // Gold outline
             bg.fillRect(-coords.width / 2, -coords.height / 2, coords.width, coords.height);
             bg.strokeRect(-coords.width / 2, -coords.height / 2, coords.width, coords.height);
             container.add(bg);
@@ -124,63 +131,101 @@ export default class BoardRenderer {
             const ownerGraphics = this.scene.add.graphics();
             container.add(ownerGraphics);
             container.ownerGraphics = ownerGraphics;
+            
+            const textContainer = this.scene.add.container(0, 0);
+            if (!isCorner) {
+                textContainer.setAngle(-coords.rotation);
+            }
+            container.add(textContainer);
 
-            // Title label
-            let titleY = -coords.height / 2 + (sq.type === 'property' ? 24 : 10);
-            let fontSize = isCorner ? '14px' : '13px';
-            let nameText = sq.name;
+            let titleX = 0;
+            let titleY = 0;
+            let priceX = 0;
+            let priceY = 0;
+            let iconX = 0;
+            let iconY = 0;
+            
+            let fontSize = isCorner ? '16px' : '15px';
+            let wordWrapWidth = coords.width - 4;
 
-            // Shorten longer words for side bars if necessary
-            if (!isCorner && nameText.length > 8) {
-                nameText = nameText.substring(0, 7) + '..';
+            if (!isCorner) {
+                if (coords.rotation === 0) { // Bottom
+                    titleY = -coords.height / 2 + (sq.type === 'property' ? 28 : 15);
+                    priceY = coords.height / 2 - 15;
+                    iconY = -5;
+                } else if (coords.rotation === 180) { // Top
+                    titleY = -coords.height / 2 + 15;
+                    priceY = coords.height / 2 - (sq.type === 'property' ? 25 : 15);
+                    iconY = 0;
+                } else if (coords.rotation === 90) { // Left
+                    titleX = (sq.type === 'property' ? -10 : 0);
+                    titleY = -12;
+                    priceX = titleX;
+                    priceY = 15;
+                    iconX = titleX;
+                    iconY = 0;
+                    fontSize = '12px';
+                    wordWrapWidth = 90;
+                } else if (coords.rotation === 270) { // Right
+                    titleX = (sq.type === 'property' ? 10 : 0);
+                    titleY = -12;
+                    priceX = titleX;
+                    priceY = 15;
+                    iconX = titleX;
+                    iconY = 0;
+                    fontSize = '12px';
+                    wordWrapWidth = 90;
+                }
+            } else {
+                titleY = -coords.height / 2 + 15;
             }
 
-            const title = this.scene.add.text(0, titleY, nameText, {
+            let nameText = sq.name;
+            if (!isCorner && (coords.rotation === 90 || coords.rotation === 270)) {
+                nameText = sq.name.replace('\n', ' '); // Use horizontal space instead of line breaks
+            }
+
+            // Title
+            const title = this.scene.add.text(titleX, titleY, nameText, {
                 fontFamily: 'Noto Sans Thai, sans-serif',
                 fontSize: fontSize,
-                fontWeight: '600',
-                color: '#E2E8F0',
-                align: 'center'
-            }).setOrigin(0.5, 0);
-            
-            // Counter-rotate text so it is always perfectly upright
-            if (!isCorner) {
-                title.setAngle(-coords.rotation);
-            }
-            container.add(title);
+                fontWeight: '700',
+                color: '#FFFFFF',
+                align: 'center',
+                stroke: '#000000',
+                strokeThickness: 3,
+                wordWrap: { width: wordWrapWidth, useAdvancedWrap: true }
+            }).setOrigin(0.5, 0.5);
+
+            textContainer.add(title);
 
             // Price label
             if (sq.price || sq.cost) {
                 const priceVal = sq.price || sq.cost;
-                const priceText = this.scene.add.text(0, coords.height / 2 - 14, `฿${priceVal}`, {
-                    fontFamily: 'Inter, sans-serif',
-                    fontSize: '11px',
-                    fontWeight: 'bold',
-                    color: '#EAB308'
-                }).setOrigin(0.5, 0);
-                
-                if (!isCorner) {
-                    priceText.setAngle(-coords.rotation);
-                }
-                container.add(priceText);
+                const priceText = this.scene.add.text(priceX, priceY, `฿${priceVal}`, {
+                    fontFamily: 'Outfit, Inter, sans-serif',
+                    fontSize: '13px',
+                    fontWeight: '900',
+                    color: '#FDE047',
+                    stroke: '#000000',
+                    strokeThickness: 3
+                }).setOrigin(0.5, 0.5);
+
+                textContainer.add(priceText);
             }
 
             if (sq.type === 'utility' && sq.icon) {
-                const icon = this.scene.add.text(0, -5, sq.icon, { fontSize: '24px' }).setOrigin(0.5);
-                if (!isCorner) icon.setAngle(-coords.rotation);
-                container.add(icon);
+                const icon = this.scene.add.text(iconX, iconY, sq.icon, { fontSize: '24px' }).setOrigin(0.5);
+                textContainer.add(icon);
             } else if (sq.type === 'railroad') {
-                const icon = this.scene.add.text(0, -5, '🚂', { fontSize: '22px' }).setOrigin(0.5);
-                if (!isCorner) icon.setAngle(-coords.rotation);
-                container.add(icon);
+                const icon = this.scene.add.text(iconX, iconY, '🚂', { fontSize: '22px' }).setOrigin(0.5);
+                textContainer.add(icon);
             } else if (sq.type === 'chance') {
-                const icon = this.scene.add.text(0, 0, '❓', { fontSize: '28px', color: '#EF4444' }).setOrigin(0.5);
-                if (!isCorner) icon.setAngle(-coords.rotation);
-                container.add(icon);
+                const icon = this.scene.add.text(iconX, iconY, '❓', { fontSize: '28px', color: '#EF4444' }).setOrigin(0.5);
+                textContainer.add(icon);
             } else if (sq.type === 'community') {
-                const icon = this.scene.add.text(0, 0, '📦', { fontSize: '26px', color: '#3B82F6' }).setOrigin(0.5);
-                if (!isCorner) icon.setAngle(-coords.rotation);
-                container.add(icon);
+                const icon = this.scene.add.text(iconX, iconY, '📦', { fontSize: '26px', color: '#3B82F6' }).setOrigin(0.5);
+                textContainer.add(icon);
             }
 
             // Specific layouts for corners
@@ -209,9 +254,13 @@ export default class BoardRenderer {
             );
 
             // Listeners
-            container.on('pointerover', () => {
+            container.on('pointerover', (pointer) => {
                 this.highlightSquare(index, 0xd4af37); // Gold hover outline
-                this.scene.events.emit('tile-hover', { square: sq, x: container.x, y: container.y });
+                this.scene.events.emit('tile-hover', { square: sq, pointer: pointer });
+            });
+
+            container.on('pointermove', (pointer) => {
+                this.scene.events.emit('tile-hover-move', { pointer: pointer });
             });
 
             container.on('pointerout', () => {

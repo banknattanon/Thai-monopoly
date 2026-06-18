@@ -124,8 +124,11 @@ class SocketManager {
     }
 
     // === Game Play Events ===
-    rollDice() {
-        this.emit('roll-dice');
+    rollDice(selection = 'normal', dice1 = null, dice2 = null) {
+        const payload = { selection };
+        if (dice1 !== null) payload.dice1 = dice1;
+        if (dice2 !== null) payload.dice2 = dice2;
+        this.emit('roll-dice', payload);
     }
 
     buyProperty(position) {

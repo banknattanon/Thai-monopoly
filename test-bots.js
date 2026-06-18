@@ -10,12 +10,12 @@ console.log('🤖 Thai Monopoly Multiplayer Bot Test Runner 🤖');
 console.log(`Connecting ${NUM_BOTS} bots to ${SERVER_URL}...`);
 console.log('==================================================\n');
 
-// Avatars and Names for Bots
+// Avatars and Names for Bots with Personality Configuration
 const BOT_TEMPLATES = [
-    { name: 'Bot_Kitten_Host', avatar: '🐱' },
-    { name: 'Bot_Puppy', avatar: '🐶' },
-    { name: 'Bot_Bunny', avatar: '🐰' },
-    { name: 'Bot_Dino', avatar: '🦖' }
+    { name: 'Bot_Kitten_Host', avatar: '🐱', personality: 'aggressive' },
+    { name: 'Bot_Puppy', avatar: '🐶', personality: 'conservative' },
+    { name: 'Bot_Bunny', avatar: '🐰', personality: 'aggressive' },
+    { name: 'Bot_Dino', avatar: '🦖', personality: 'conservative' }
 ];
 
 const clients = [];
@@ -28,7 +28,8 @@ async function startTest() {
     // 1. Connect the Host (Bot 1)
     const hostInfo = BOT_TEMPLATES[0];
     const hostSocket = io(SERVER_URL);
-    clients.push({ socket: hostSocket, name: hostInfo.name, id: null, position: 0 });
+    const hostClient = { socket: hostSocket, name: hostInfo.name, id: null, position: 0, personality: hostInfo.personality, actionTimer: null };
+    clients.push(hostClient);
 
     hostSocket.on('connect', () => {
         console.log(`[Host] Connected! Creating room as ${hostInfo.name}...`);
@@ -65,7 +66,7 @@ async function startTest() {
         console.log('==================================================\n');
         gameState = initialSync;
         logPlayersState();
-        triggerNextBotAction();
+        handleGameStateSync(hostClient, initialSync);
     });
 
     hostSocket.on('dice-rolled', ({ playerId, dice1, dice2, isDouble }) => {
@@ -113,6 +114,7 @@ async function startTest() {
 
     hostSocket.on('game-state-sync', ({ gameState: sync }) => {
         gameState = sync;
+        handleGameStateSync(hostClient, sync);
     });
 
     hostSocket.on('turn-changed', ({ currentPlayerId }) => {
@@ -123,13 +125,7 @@ async function startTest() {
         if (currentTurnCount >= MAX_TURNS) {
             console.log(`\n⚠️ Test reached maximum turn limit (${MAX_TURNS}). Terminating simulation.`);
             shutdownAll();
-            return;
         }
-
-        // Give a tiny timeout for realism and logs readability
-        setTimeout(() => {
-            triggerNextBotAction();
-        }, 1500);
     });
 
     hostSocket.on('game-over', ({ winnerId, stats }) => {
@@ -149,18 +145,29 @@ async function startTest() {
 function connectGuest(index) {
     const info = BOT_TEMPLATES[index];
     const socket = io(SERVER_URL);
-    clients.push({ socket, name: info.name, id: null, position: 0 });
+    const guestClient = { socket, name: info.name, id: null, position: 0, personality: info.personality, actionTimer: null };
+    clients.push(guestClient);
 
     socket.on('connect', () => {
         console.log(`[${info.name}] Connected! Joining room ${roomCode}...`);
-        socket.emit('join-room', { roomCode, playerName: info.name, avatar: info.avatar });
+        socket.emit('join-room', { roomCode, playerName: info.name, avatar: info.avatar, profile: info.personality });
     });
 
     socket.on('room-joined', ({ roomState }) => {
         const playerSelf = roomState.players.find(p => p.name === info.name);
-        clients[index].id = playerSelf.id;
+        guestClient.id = playerSelf.id;
         console.log(`[${info.name}] Joined room successfully. My Player ID: ${playerSelf.id}. Readying up...`);
         socket.emit('player-ready', { ready: true });
+    });
+
+    socket.on('game-state-sync', ({ gameState: sync }) => {
+        gameState = sync;
+        handleGameStateSync(guestClient, sync);
+    });
+
+    socket.on('game-started', ({ gameState: sync }) => {
+        gameState = sync;
+        handleGameStateSync(guestClient, sync);
     });
 }
 
@@ -177,85 +184,173 @@ function logPlayersState() {
     console.log('');
 }
 
-function triggerNextBotAction() {
-    if (!gameState) return;
+function handleGameStateSync(botClient, syncState) {
+    gameState = syncState;
 
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (!currentPlayer) return;
-
-    const botObj = getBotById(currentPlayer.id);
-    if (!botObj) return;
-
-    const socket = botObj.socket;
-    console.log(`🤖 Action triggered for bot: ${botObj.name} | Phase: ${gameState.turnPhase}`);
-
-    // 1. Jail Decision Check
-    if (currentPlayer.inJail && gameState.turnPhase === 'roll') {
-        console.log(`[Jail Action] ${botObj.name} is in jail. Deciding action...`);
-        if (currentPlayer.money > 2000) {
-            console.log(`[Jail Action] ${botObj.name} can afford fine. Emitting jail fine pay...`);
-            socket.emit('jail-action', { action: 'pay' });
-            
-            // Wait, then roll, then decide landing and end turn
-            setTimeout(() => {
-                socket.emit('roll-dice');
-                setTimeout(() => {
-                    processLandingDecision(botObj, socket);
-                }, 1000);
-            }, 1000);
-        } else {
-            console.log(`[Jail Action] ${botObj.name} is low on cash. Emitting roll double escape...`);
-            socket.emit('jail-action', { action: 'roll' });
-            
-            // Server rolls automatically for double, we just need to wait, decide landing, and end turn
-            setTimeout(() => {
-                processLandingDecision(botObj, socket);
-            }, 1000);
-        }
-        return;
+    // Clear any pending action timer
+    if (botClient.actionTimer) {
+        clearTimeout(botClient.actionTimer);
+        botClient.actionTimer = null;
     }
 
-    // 2. Dice rolling phase
-    if (gameState.turnPhase === 'roll') {
-        socket.emit('roll-dice');
-        
-        // Check landing buy options after roll has been processed on server
-        setTimeout(() => {
-            processLandingDecision(botObj, socket);
+    const action = getNextAction(botClient);
+    if (action) {
+        botClient.actionTimer = setTimeout(() => {
+            executeAction(botClient, action);
         }, 1000);
     }
 }
 
-function processLandingDecision(botObj, socket) {
-    if (!gameState) return;
-    
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    const currentPosition = currentPlayer.position;
-    
-    // Check if the current square is an unowned property
-    const square = gameState.board[currentPosition];
-    
-    if (square && (square.type === 'property' || square.type === 'railroad' || square.type === 'utility')) {
-        const ownerId = gameState.propertyOwners[currentPosition];
-        
-        if (!ownerId) {
-            // Unowned! Let's decide to buy if we have enough cash
-            const cost = square.price;
-            if (currentPlayer.money >= cost) {
-                console.log(`🤖 [Decision] ${botObj.name} decides to buy property ${square.name} for ฿${cost}`);
-                socket.emit('buy-property', { position: currentPosition });
+function getUpgradeAction(botClient, currentPlayer) {
+    const COLOR_GROUPS = {
+        brown:     [1, 3],
+        lightblue: [6, 8, 9],
+        pink:      [11, 13, 14],
+        orange:    [16, 18, 19],
+        red:       [21, 23, 24],
+        yellow:    [26, 27, 29],
+        green:     [31, 32, 34],
+        darkblue:  [37, 39]
+    };
+
+    const reserveThreshold = botClient.personality === 'conservative' ? 5000 : 0;
+
+    for (const [color, positions] of Object.entries(COLOR_GROUPS)) {
+        const ownsAll = positions.every(pos => gameState.propertyOwners[pos] === botClient.id);
+        if (ownsAll) {
+            for (const pos of positions) {
+                const square = gameState.board[pos];
+                const houses = square.houses || 0;
+                const hotel = square.hotel;
+                const isMortgaged = square.isMortgaged;
+                const buildCost = square.buildCost;
+
+                if (!isMortgaged && !hotel) {
+                    if (houses < 4) {
+                        if (currentPlayer.money - buildCost >= reserveThreshold) {
+                            return { type: 'build-house', position: pos };
+                        }
+                    } else if (houses === 4) {
+                        if (currentPlayer.money - buildCost >= reserveThreshold) {
+                            return { type: 'build-hotel', position: pos };
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return null;
+}
+
+function getNextAction(botClient) {
+    if (!gameState) return null;
+
+    const currentPlayer = gameState.players.find(p => p.id === botClient.id);
+    if (!currentPlayer || currentPlayer.isBankrupt) return null;
+
+
+
+    // The remaining actions are only for the active player's turn
+    const activePlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
+    if (activePlayerId !== botClient.id) {
+        return null;
+    }
+
+    // 1. Jail Decision Check
+    if (currentPlayer.inJail && gameState.turnPhase === 'roll') {
+        if (currentPlayer.getOutOfJailCards > 0) {
+            return { type: 'jail-action', action: 'card' };
+        } else {
+            const canPay = currentPlayer.money >= 500;
+            const reserveThreshold = botClient.personality === 'conservative' ? 5000 : 0;
+            if (canPay && (currentPlayer.money - 500 >= reserveThreshold)) {
+                return { type: 'jail-action', action: 'pay' };
             } else {
-                console.log(`🤖 [Decision] ${botObj.name} cannot afford property ${square.name} (Cost: ฿${cost}, Money: ฿${currentPlayer.money}). Declining...`);
-                socket.emit('decline-property');
+                return { type: 'jail-action', action: 'roll' };
             }
         }
     }
 
-    // Wait a brief moment, then end turn
-    setTimeout(() => {
-        console.log(`🤖 [Decision] ${botObj.name} ending turn.`);
-        socket.emit('end-turn');
-    }, 1000);
+    // 2. Dice rolling phase
+    if (gameState.turnPhase === 'roll') {
+        return { type: 'roll' };
+    }
+
+    // 3. Purchase landing check
+    if (gameState.turnPhase === 'action') {
+        const currentPosition = currentPlayer.position;
+        const square = gameState.board[currentPosition];
+        if (square && (square.type === 'property' || square.type === 'railroad' || square.type === 'utility')) {
+            const ownerId = gameState.propertyOwners[currentPosition];
+            if (!ownerId) {
+                const cost = square.price;
+                const reserveThreshold = botClient.personality === 'conservative' ? 5000 : 0;
+                if (currentPlayer.money >= cost && (currentPlayer.money - cost >= reserveThreshold)) {
+                    return { type: 'buy-property', position: currentPosition };
+                } else {
+                    return { type: 'decline-property' };
+                }
+            }
+        }
+    }
+
+    // 4. Takeover decision
+    if (gameState.turnPhase === 'takeover') {
+        const cost = gameState.currentTakeoverCost;
+        const reserveThreshold = botClient.personality === 'conservative' ? 5000 : 0;
+        if (cost && currentPlayer.money >= cost && (currentPlayer.money - cost >= reserveThreshold)) {
+            return { type: 'takeover-property' };
+        } else {
+            return { type: 'decline-takeover' };
+        }
+    }
+
+    // 5. Upgrade & End turn
+    if (gameState.turnPhase === 'end') {
+        const upgrade = getUpgradeAction(botClient, currentPlayer);
+        if (upgrade) {
+            return upgrade;
+        }
+        return { type: 'end-turn' };
+    }
+
+    return null;
+}
+
+function executeAction(botClient, action) {
+    const socket = botClient.socket;
+    console.log(`🤖 [${botClient.name} (${botClient.personality})] Executing: ${JSON.stringify(action)}`);
+
+    switch (action.type) {
+
+        case 'jail-action':
+            socket.emit('jail-action', { action: action.action });
+            break;
+        case 'roll':
+            socket.emit('roll-dice');
+            break;
+        case 'buy-property':
+            socket.emit('buy-property', { position: action.position });
+            break;
+        case 'decline-property':
+            socket.emit('decline-property');
+            break;
+        case 'takeover-property':
+            socket.emit('takeover-property');
+            break;
+        case 'decline-takeover':
+            socket.emit('decline-takeover');
+            break;
+        case 'build-house':
+            socket.emit('build-house', { position: action.position });
+            break;
+        case 'build-hotel':
+            socket.emit('build-hotel', { position: action.position });
+            break;
+        case 'end-turn':
+            socket.emit('end-turn');
+            break;
+    }
 }
 
 function shutdownAll() {

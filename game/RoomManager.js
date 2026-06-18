@@ -71,8 +71,7 @@ class RoomManager {
             },
             gameEngine: null,
             status: 'waiting',
-            auctionState: null,
-            auctionTimer: null
+
         };
 
         this.rooms.set(roomCode, newRoom);
@@ -251,33 +250,21 @@ class RoomManager {
     }
 
     startGame(socket) {
-        const association = this.socketToPlayer.get(socket.id);
-        if (!association) return;
-        const { roomCode, playerId } = association;
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'waiting' || room.host !== this.socketToPlayer.get(socket.id).playerId) return;
 
-        const room = this.rooms.get(roomCode);
-        if (!room || room.status !== 'waiting') return;
-
-        if (room.host !== playerId) {
-            socket.emit('error-msg', { message: 'Only the host can start the game / เฉพาะโฮสต์เท่านั้นที่เริ่มเกมได้' });
-            return;
-        }
-
-        if (room.players.length < 2) {
-            socket.emit('error-msg', { message: 'At least 2 players are required / ต้องการผู้เล่นอย่างน้อย 2 คน' });
-            return;
-        }
-
-        const allReady = room.players.every(p => p.ready || p.id === room.host);
+        // Verify all players are ready
+        const allReady = room.players.every(p => p.ready);
         if (!allReady) {
-            socket.emit('error-msg', { message: 'All players must be ready / ผู้เล่นทุกคนต้องพร้อมก่อนเริ่มเกม' });
+            socket.emit('error-msg', { message: 'Not all players are ready / ผู้เล่นยังเตรียมพร้อมไม่ครบทุกคน' });
             return;
         }
 
+        // Initialize GameEngine
         room.gameEngine = new GameEngine(room.players, room.settings);
         room.status = 'playing';
 
-        this.io.to(roomCode).emit('game-started', { gameState: room.gameEngine.getFullState() });
+        this.io.to(room.code).emit('game-started', { gameState: room.gameEngine.getFullState() });
     }
 
     getRoomForSocket(socket) {
@@ -286,7 +273,7 @@ class RoomManager {
         return this.rooms.get(association.roomCode);
     }
 
-    handleRollDice(socket) {
+    handleRollDice(socket, payload) {
         const room = this.getRoomForSocket(socket);
         if (!room || room.status !== 'playing' || !room.gameEngine) return;
         const association = this.socketToPlayer.get(socket.id);
@@ -303,7 +290,38 @@ class RoomManager {
             return;
         }
 
-        const result = engine.rollDice();
+        const selection = (payload && payload.selection) || 'normal';
+        let customDice1 = null;
+        let customDice2 = null;
+        if (payload && typeof payload.dice1 === 'number' && typeof payload.dice2 === 'number') {
+            customDice1 = payload.dice1;
+            customDice2 = payload.dice2;
+        }
+        
+        let normalizedSelection = selection;
+        if (normalizedSelection !== 'odd' && normalizedSelection !== 'even') {
+            normalizedSelection = 'normal';
+        }
+
+        if (customDice1 !== null && customDice2 !== null) {
+            const sum = customDice1 + customDice2;
+            if (normalizedSelection === 'odd' && sum % 2 === 0) {
+                socket.emit('error-msg', { message: 'Mismatched dice sum and selection choice / ผลรวมลูกเต๋าไม่ตรงกับประเภทที่เลือก' });
+                return;
+            }
+            if (normalizedSelection === 'even' && sum % 2 !== 0) {
+                socket.emit('error-msg', { message: 'Mismatched dice sum and selection choice / ผลรวมลูกเต๋าไม่ตรงกับประเภทที่เลือก' });
+                return;
+            }
+        }
+
+        let result;
+        try {
+            result = engine.rollDice(normalizedSelection, customDice1, customDice2);
+        } catch (err) {
+            socket.emit('error-msg', { message: err.message });
+            return;
+        }
 
         // Broadcast dice rolled
         this.io.to(room.code).emit('dice-rolled', {
@@ -364,6 +382,8 @@ class RoomManager {
                         // Keep current player's takeover details for UI
                         engine.currentTakeoverCost = landing.takeoverCost;
                     }
+                } else if (landing.type === 'buy-option' || landing.type === 'build-option') {
+                    this.io.to(socket.id).emit('action-prompt', { type: landing.type, position: currentPlayer.position });
                 } else if (landing.type === 'card') {
                     this.io.to(room.code).emit('card-drawn', {
                         playerId: currentPlayer.id,
@@ -398,6 +418,8 @@ class RoomManager {
                                 }
                             } else if (r.type === 'jail') {
                                 this.io.to(room.code).emit('player-jailed', { playerId: r.playerId, reason: 'card_effect' });
+                            } else if (r.type === 'landing' && r.detail && (r.detail.type === 'buy-option' || r.detail.type === 'build-option')) {
+                                this.io.to(socket.id).emit('action-prompt', { type: r.detail.type, position: engine.players.find(p => p.id === r.playerId).position });
                             }
                         });
                     }
@@ -438,10 +460,21 @@ class RoomManager {
                 const gameOverResult = engine.checkGameOver();
                 if (gameOverResult.isOver) {
                     room.status = 'finished';
-                    this.io.to(room.code).emit('game-over', { winnerId: gameOverResult.winnerId, stats: engine.getStats() });
+                    this.io.to(room.code).emit('game-over', { winnerId: gameOverResult.winnerId, stats: engine.getStats(), reason: gameOverResult.reason });
                 }
             }
         }
+    }
+
+    checkVictory(room) {
+        const engine = room.gameEngine;
+        const gameOverResult = engine.checkGameOver();
+        if (gameOverResult.isOver) {
+            room.status = 'finished';
+            this.io.to(room.code).emit('game-over', { winnerId: gameOverResult.winnerId, stats: engine.getStats(), reason: gameOverResult.reason });
+            return true;
+        }
+        return false;
     }
 
     handleBuyProperty(socket, position) {
@@ -475,6 +508,15 @@ class RoomManager {
                 money: currentPlayer.money
             });
             this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+            
+            if (result.promptBuild) {
+                const targetSocket = this.io.sockets.sockets.get(socket.id);
+                if (targetSocket) {
+                    targetSocket.emit('action-prompt', { type: 'build-option', position });
+                }
+            }
+
+            this.checkVictory(room);
         } else {
             socket.emit('error-msg', { message: 'Cannot buy this property / ไม่สามารถซื้อที่ดินนี้ได้' });
         }
@@ -520,6 +562,15 @@ class RoomManager {
             });
 
             this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+            
+            if (result.promptBuild) {
+                const targetSocket = this.io.sockets.sockets.get(socket.id);
+                if (targetSocket) {
+                    targetSocket.emit('action-prompt', { type: 'build-option', position });
+                }
+            }
+
+            this.checkVictory(room);
         } else {
             socket.emit('error-msg', { message: 'Cannot takeover this property / ไม่สามารถซื้อต่อที่ดินนี้ได้' });
         }
@@ -552,81 +603,7 @@ class RoomManager {
             return;
         }
 
-        const position = currentPlayer.position;
-        const auction = engine.startAuction(position);
-        if (auction) {
-            room.auctionState = auction;
-            this.io.to(room.code).emit('auction-start', {
-                position: position,
-                startPrice: 0,
-                bids: []
-            });
-
-            this.resetAuctionTimer(room);
-            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
-        }
-    }
-
-    resetAuctionTimer(room) {
-        if (room.auctionTimer) {
-            clearTimeout(room.auctionTimer);
-        }
-        room.auctionTimer = setTimeout(() => {
-            this.resolveAuction(room);
-        }, 10000); // 10 seconds for bidding
-    }
-
-    handlePlaceBid(socket, amount) {
-        const room = this.getRoomForSocket(socket);
-        if (!room || room.status !== 'playing' || !room.gameEngine || !room.auctionState) return;
-        const association = this.socketToPlayer.get(socket.id);
-        const playerId = association.playerId;
-        const engine = room.gameEngine;
-
-        const bidder = engine.players.find(p => p.id === playerId);
-        if (!bidder || bidder.isBankrupt) return;
-
-        const result = engine.placeBid(playerId, amount);
-        if (result.success) {
-            this.io.to(room.code).emit('bid-placed', {
-                playerId: playerId,
-                amount: amount
-            });
-            this.resetAuctionTimer(room);
-            this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
-        } else {
-            socket.emit('error-msg', { message: result.message || 'Invalid bid / ยอดประมูลไม่ถูกต้อง' });
-        }
-    }
-
-    resolveAuction(room) {
-        if (!room.auctionState || !room.gameEngine) return;
-        
-        const engine = room.gameEngine;
-        const result = engine.endAuction();
-        
-        if (result.winnerId) {
-            this.io.to(room.code).emit('property-bought', {
-                playerId: result.winnerId,
-                position: result.position,
-                cost: result.finalPrice
-            });
-            this.io.to(room.code).emit('money-changed', {
-                playerId: result.winnerId,
-                amount: -result.finalPrice,
-                reason: 'auction_win',
-                money: engine.players.find(p => p.id === result.winnerId).money
-            });
-        }
-        
-        this.io.to(room.code).emit('auction-end', {
-            winnerId: result.winnerId,
-            position: result.position,
-            finalPrice: result.finalPrice
-        });
-
-        room.auctionState = null;
-        room.auctionTimer = null;
+        engine.endTurnPhase();
         this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
     }
 
@@ -735,6 +712,11 @@ class RoomManager {
             return;
         }
 
+        if (currentPlayer.money < 0 && !currentPlayer.isBankrupt) {
+            socket.emit('error-msg', { message: 'ไม่สามารถจบเทิร์นได้ เงินของคุณติดลบ กรุณาจำนองที่ดินหรือประกาศล้มละลาย / Cannot end turn with negative money' });
+            return;
+        }
+
         const prevPlayerId = currentPlayer.id;
         const nextPlayerId = engine.endTurn();
 
@@ -742,53 +724,7 @@ class RoomManager {
         this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
     }
 
-    handleTradePropose(socket, targetId, offer, request) {
-        const room = this.getRoomForSocket(socket);
-        if (!room || room.status !== 'playing' || !room.gameEngine) return;
-        const association = this.socketToPlayer.get(socket.id);
-        const engine = room.gameEngine;
 
-        const tradeId = engine.proposeTrade(association.playerId, targetId, offer, request);
-        if (tradeId) {
-            const targetPlayer = room.players.find(p => p.id === targetId);
-            if (targetPlayer && targetPlayer.socketId) {
-                this.io.to(targetPlayer.socketId).emit('trade-proposed', {
-                    tradeId,
-                    proponentId: association.playerId,
-                    offer,
-                    request
-                });
-            }
-        } else {
-            socket.emit('error-msg', { message: 'Invalid trade offer / ข้อเสนอแลกเปลี่ยนไม่ถูกต้อง' });
-        }
-    }
-
-    handleTradeRespond(socket, tradeId, accepted) {
-        const room = this.getRoomForSocket(socket);
-        if (!room || room.status !== 'playing' || !room.gameEngine) return;
-        const engine = room.gameEngine;
-
-        if (accepted) {
-            const result = engine.acceptTrade(tradeId);
-            if (result && result.success) {
-                this.io.to(room.code).emit('trade-completed', {
-                    tradeId,
-                    accepted: true,
-                    result
-                });
-                this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
-            } else {
-                socket.emit('error-msg', { message: 'Failed to complete trade / การแลกเปลี่ยนล้มเหลว' });
-            }
-        } else {
-            engine.declineTrade(tradeId);
-            this.io.to(room.code).emit('trade-completed', {
-                tradeId,
-                accepted: false
-            });
-        }
-    }
 
     handleSendChat(socket, message) {
         const room = this.getRoomForSocket(socket);
@@ -891,7 +827,7 @@ class RoomManager {
                         if (engine.settings.freeParkingRule) {
                             this.io.to(room.code).emit('free-parking-pot-updated', { pot: engine.freeParkingPot });
                         }
-                    } else if (landing.type === 'rent') {
+                    } else if (landing.type === 'rent' || landing.type === 'rent-and-takeover') {
                         this.io.to(room.code).emit('money-changed', {
                             playerId: currentPlayer.id,
                             amount: -landing.amount,
@@ -904,6 +840,12 @@ class RoomManager {
                             reason: 'rent_received',
                             money: engine.players.find(p => p.id === landing.ownerId).money
                         });
+                        if (landing.type === 'rent-and-takeover') {
+                            engine.turnPhase = 'takeover';
+                            engine.currentTakeoverCost = landing.takeoverCost;
+                        }
+                    } else if (landing.type === 'buy-option' || landing.type === 'build-option') {
+                        this.io.to(socket.id).emit('action-prompt', { type: landing.type, position: currentPlayer.position });
                     } else if (landing.type === 'card') {
                         this.io.to(room.code).emit('card-drawn', {
                             playerId: currentPlayer.id,
@@ -937,8 +879,22 @@ class RoomManager {
                                     }
                                 } else if (r.type === 'jail') {
                                     this.io.to(room.code).emit('player-jailed', { playerId: r.playerId, reason: 'card_effect' });
+                                } else if (r.type === 'landing' && r.detail && (r.detail.type === 'buy-option' || r.detail.type === 'build-option')) {
+                                    this.io.to(socket.id).emit('action-prompt', { type: r.detail.type, position: engine.players.find(p => p.id === r.playerId).position });
                                 }
                             });
+                        }
+                    } else if (landing.type === 'go-to-jail') {
+                        this.io.to(room.code).emit('player-jailed', { playerId: currentPlayer.id, reason: 'landed_jail_square' });
+                    } else if (landing.type === 'free-parking') {
+                        if (engine.settings.freeParkingRule && landing.collected > 0) {
+                            this.io.to(room.code).emit('money-changed', {
+                                playerId: currentPlayer.id,
+                                amount: landing.collected,
+                                reason: 'free_parking',
+                                money: currentPlayer.money
+                            });
+                            this.io.to(room.code).emit('free-parking-pot-updated', { pot: 0 });
                         }
                     }
                 }
@@ -982,8 +938,8 @@ class RoomManager {
         socket.on('start-game', () => {
             this.startGame(socket);
         });
-        socket.on('roll-dice', () => {
-            this.handleRollDice(socket);
+        socket.on('roll-dice', (payload) => {
+            this.handleRollDice(socket, payload);
         });
         socket.on('buy-property', ({ position }) => {
             this.handleBuyProperty(socket, position);
@@ -997,9 +953,7 @@ class RoomManager {
         socket.on('decline-property', () => {
             this.handleDeclineProperty(socket);
         });
-        socket.on('place-bid', ({ amount }) => {
-            this.handlePlaceBid(socket, amount);
-        });
+
         socket.on('build-house', ({ position }) => {
             this.handleBuildHouse(socket, position);
         });
@@ -1015,12 +969,7 @@ class RoomManager {
         socket.on('end-turn', () => {
             this.handleEndTurn(socket);
         });
-        socket.on('trade-propose', ({ targetId, offer, request }) => {
-            this.handleTradePropose(socket, targetId, offer, request);
-        });
-        socket.on('trade-respond', ({ tradeId, accepted }) => {
-            this.handleTradeRespond(socket, tradeId, accepted);
-        });
+
         socket.on('send-chat', ({ message }) => {
             this.handleSendChat(socket, message);
         });

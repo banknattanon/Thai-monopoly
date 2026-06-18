@@ -9,7 +9,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Noto+Sans+Thai:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Style Sheets -->
     <link rel="stylesheet" href="/css/style.css">
@@ -96,7 +96,7 @@
                                 <div class="player-avatar">🐱</div>
                                 <div class="player-info">
                                     <div class="player-name">คุณ (Host)</div>
-                                    <div class="player-tag">เจ้าของห้อง</div>
+                                    <div class="player-info">เจ้าของห้อง</div>
                                 </div>
                                 <div class="player-status-badge status-ready">พร้อม</div>
                             </div>
@@ -148,16 +148,25 @@
                         </div>
                     </div>
                     
-                    <div class="lobby-actions">
-                        <button type="button" id="btn-add-bot" class="btn btn-secondary" style="display: none;">
-                            🤖 เพิ่มบอท / Add Bot
-                        </button>
-                        <button type="button" id="btn-ready" class="btn btn-secondary">
-                            เตรียมพร้อม / Ready
-                        </button>
-                        <button type="button" id="btn-start-game" class="btn btn-primary btn-glow-gold" disabled>
-                            เริ่มเกม / Start Game
-                        </button>
+                    <div class="lobby-actions" style="flex-direction: column;">
+                        <div class="bot-selector-container" style="display: flex; gap: 8px; align-items: center; justify-content: center; width: 100%; display: none;" id="bot-controls">
+                            <select id="select-bot-personality" class="select-gold" style="flex: 1;">
+                                <option value="normal">ทั่วไป / Normal</option>
+                                <option value="aggressive">ก้าวร้าว / Aggressive</option>
+                                <option value="conservative">ระมัดระวัง / Conservative</option>
+                            </select>
+                            <button type="button" id="btn-add-bot" class="btn btn-secondary" style="flex: 1; padding: 12px 8px; font-size: 0.9rem;">
+                                🤖 เพิ่มบอท
+                            </button>
+                        </div>
+                        <div style="display: flex; gap: 12px; width: 100%;">
+                            <button type="button" id="btn-ready" class="btn btn-secondary" style="flex: 1;">
+                                เตรียมพร้อม / Ready
+                            </button>
+                            <button type="button" id="btn-start-game" class="btn btn-primary btn-glow-gold" style="flex: 1;" disabled>
+                                เริ่มเกม / Start Game
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -183,6 +192,26 @@
                             </div>
                             
                             <div class="action-buttons-group">
+                                <!-- Dice Selection (Odd/Even/Normal) -->
+                                <div id="dice-selector-container" class="dice-selector" style="display: none;">
+                                    <span class="selector-title">ลูกเต๋า / Dice:</span>
+                                    <label class="selector-option">
+                                        <input type="radio" name="dice-selection" value="normal" checked>
+                                        <span class="custom-radio"></span>
+                                        <span class="label-text">ปกติ / Normal</span>
+                                    </label>
+                                    <label class="selector-option">
+                                        <input type="radio" name="dice-selection" value="even">
+                                        <span class="custom-radio"></span>
+                                        <span class="label-text">คู่ / Even</span>
+                                    </label>
+                                    <label class="selector-option">
+                                        <input type="radio" name="dice-selection" value="odd">
+                                        <span class="custom-radio"></span>
+                                        <span class="label-text">คี่ / Odd</span>
+                                    </label>
+                                </div>
+                                
                                 <!-- Roll Dice -->
                                 <button type="button" id="btn-roll-dice" class="btn btn-primary btn-glow-gold btn-action">
                                     🎲 ทอยเต๋า / Roll Dice
@@ -195,23 +224,10 @@
                                 <button type="button" id="btn-decline" class="btn btn-danger btn-action" style="display: none;">
                                     ❌ ไม่ซื้อ / Decline
                                 </button>
-                                
-                                <!-- Build House / Hotel -->
-                                <button type="button" id="btn-build-house" class="btn btn-secondary btn-action" style="display: none;">
-                                    🏠 สร้างบ้าน / Build House
-                                </button>
-                                <button type="button" id="btn-build-hotel" class="btn btn-secondary btn-action" style="display: none;">
-                                    🏨 สร้างโรงแรม / Build Hotel
-                                </button>
-                                
+
                                 <!-- Mortgage Properties -->
                                 <button type="button" id="btn-mortgage" class="btn btn-warning btn-action" style="display: none;">
                                     📋 จำนอง / Mortgage
-                                </button>
-                                
-                                <!-- Trade button -->
-                                <button type="button" id="btn-trade" class="btn btn-info btn-action" style="display: none;">
-                                    🤝 แลกเปลี่ยน / Trade
                                 </button>
                                 
                                 <!-- Jail Actions -->
@@ -430,6 +446,64 @@
                 </footer>
             </div>
         </dialog>
+
+        <!-- Interactive Hover Property Card popup (glassmorphic panel) -->
+        <div id="hover-property-card" class="glass-panel hover-card" style="display: none; position: fixed; z-index: 9999; pointer-events: none;">
+            <div class="hover-card-header" id="hover-card-header">
+                <div class="hover-card-title-th" id="hover-card-title-th">ที่ดิน</div>
+                <div class="hover-card-title-en" id="hover-card-title-en">Property</div>
+            </div>
+            <div class="hover-card-body">
+                <div class="rent-row">
+                    <span>ค่าเช่าเริ่มต้น / Rent</span>
+                    <span id="hover-card-rent-0" class="rent-val">-</span>
+                </div>
+                <div class="rent-row">
+                    <span>🏠 1 บ้าน / 1 House</span>
+                    <span id="hover-card-rent-1" class="rent-val">-</span>
+                </div>
+                <div class="rent-row">
+                    <span>🏠🏠 2 บ้าน / 2 Houses</span>
+                    <span id="hover-card-rent-2" class="rent-val">-</span>
+                </div>
+                <div class="rent-row">
+                    <span>🏠🏠🏠 3 บ้าน / 3 Houses</span>
+                    <span id="hover-card-rent-3" class="rent-val">-</span>
+                </div>
+                <div class="rent-row">
+                    <span>🏠🏠🏠🏠 4 บ้าน / 4 Houses</span>
+                    <span id="hover-card-rent-4" class="rent-val">-</span>
+                </div>
+                <div class="rent-row">
+                    <span>🏨 โรงแรม / Hotel</span>
+                    <span id="hover-card-rent-5" class="rent-val">-</span>
+                </div>
+                <div class="hover-card-divider"></div>
+                <div class="info-row" id="hover-card-build-cost-row">
+                    <span>ค่าสร้าง / Build Cost:</span>
+                    <span id="hover-card-build-cost">-</span>
+                </div>
+                <div class="info-row" id="hover-card-mortgage-row">
+                    <span>ราคาจำนอง / Mortgage:</span>
+                    <span id="hover-card-mortgage">-</span>
+                </div>
+                <div class="info-row" id="hover-card-owner-row" style="display: none;">
+                    <span>เจ้าของ / Owner:</span>
+                    <span id="hover-card-owner">-</span>
+                </div>
+                <div class="info-row text-danger" id="hover-card-mortgage-status" style="display: none; font-weight: bold;">
+                    ⚠️ ถูกจำนอง / MORTGAGED
+                </div>
+            </div>
+        </div>
+
+        <!-- Turn Transition Banner -->
+        <div id="turn-transition-banner" class="turn-banner" style="display: none;">
+            <div class="turn-banner-content glass-panel">
+                <div class="turn-banner-sub" id="turn-banner-sub">ตาของคุณแล้ว!</div>
+                <div class="turn-banner-main" id="turn-banner-main">YOUR TURN!</div>
+            </div>
+        </div>
         
     </div>
 

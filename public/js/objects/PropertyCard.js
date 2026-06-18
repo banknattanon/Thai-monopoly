@@ -1,112 +1,23 @@
-// PropertyCard - Phaser object container for showing detailed property details on hover/click
+// PropertyCard - Client-side driver mapping Phaser board tile interactions to the HTML/DOM hover card popup
 
 import { formatMoney } from '../utils/helpers.js';
 
-export default class PropertyCard extends Phaser.GameObjects.Container {
+export default class PropertyCard {
     /**
      * @param {Phaser.Scene} scene
      * @param {number} x
      * @param {number} y
      */
     constructor(scene, x, y) {
-        super(scene, x, y);
-
         this.scene = scene;
-        this.setVisible(false);
-        this.setDepth(2000); // Always on top
-
-        // Dimensions
-        this.cardWidth = 260;
-        this.cardHeight = 340;
-
-        // Background
-        this.bg = scene.add.graphics();
-        this.add(this.bg);
-
-        // Header stripe
-        this.headerStripe = scene.add.graphics();
-        this.add(this.headerStripe);
-
-        // Title text
-        this.titleTh = scene.add.text(this.cardWidth / 2, 20, '', {
-            fontFamily: 'Noto Sans Thai, sans-serif',
-            fontSize: '18px',
-            fontWeight: 'bold',
-            color: '#FFFFFF'
-        }).setOrigin(0.5);
-        this.add(this.titleTh);
-
-        this.titleEn = scene.add.text(this.cardWidth / 2, 42, '', {
-            fontFamily: 'Inter, sans-serif',
-            fontSize: '12px',
-            color: '#DDDDDD'
-        }).setOrigin(0.5);
-        this.add(this.titleEn);
-
-        // Rent text fields array
-        this.rentTexts = [];
-        const startY = 70;
-        const spacing = 20;
-
-        // Populate placeholders for rent rows
-        for (let i = 0; i < 6; i++) {
-            const labelText = scene.add.text(15, startY + i * spacing, '', {
-                fontFamily: 'Noto Sans Thai, sans-serif',
-                fontSize: '12px',
-                color: '#AAAAAA'
-            });
-            const valText = scene.add.text(this.cardWidth - 15, startY + i * spacing, '', {
-                fontFamily: 'Inter, sans-serif',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                color: '#EAB308'
-            }).setOrigin(1, 0);
-
-            this.add(labelText);
-            this.add(valText);
-            this.rentTexts.push({ label: labelText, val: valText });
+        this.element = document.getElementById('hover-property-card');
+        if (!this.element) {
+            console.warn('PropertyCard: #hover-property-card element not found in DOM.');
         }
-
-        // Info divider
-        this.divider = scene.add.graphics();
-        this.add(this.divider);
-
-        // Footer info (Build cost, mortgage, owner)
-        this.buildCostText = scene.add.text(15, 205, '', {
-            fontFamily: 'Noto Sans Thai, sans-serif',
-            fontSize: '11px',
-            color: '#999999'
-        });
-        this.add(this.buildCostText);
-
-        this.mortgageText = scene.add.text(15, 225, '', {
-            fontFamily: 'Noto Sans Thai, sans-serif',
-            fontSize: '11px',
-            color: '#999999'
-        });
-        this.add(this.mortgageText);
-
-        this.ownerText = scene.add.text(15, 250, '', {
-            fontFamily: 'Noto Sans Thai, sans-serif',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: '#EAB308'
-        });
-        this.add(this.ownerText);
-
-        this.mortgageStatusText = scene.add.text(15, 275, '', {
-            fontFamily: 'Noto Sans Thai, sans-serif',
-            fontSize: '12px',
-            fontWeight: 'bold',
-            color: '#EF4444'
-        });
-        this.add(this.mortgageStatusText);
-
-        scene.add.existing(this);
     }
 
     /**
-     * Updates card styling and data.
+     * Updates card styling and data in the DOM container.
      * @param {Object} square
      * @param {string} [ownerName]
      * @param {string} [ownerColor]
@@ -115,141 +26,193 @@ export default class PropertyCard extends Phaser.GameObjects.Container {
      * @param {boolean} [isMortgaged]
      */
     updateData(square, ownerName = null, ownerColor = null, houses = 0, hasHotel = false, isMortgaged = false) {
-        if (!square) return;
-
-        // Clean graphics
-        this.bg.clear();
-        this.headerStripe.clear();
-        this.divider.clear();
-
-        // Draw shadow and card background
-        this.bg.fillStyle(0x0e131f, 0.95);
-        this.bg.lineStyle(2, 0xd4af37, 0.8);
-        this.bg.fillRoundedRect(0, 0, this.cardWidth, this.cardHeight, 12);
-        this.bg.strokeRoundedRect(0, 0, this.cardWidth, this.cardHeight, 12);
+        if (!this.element || !square) return;
 
         // Populate titles
-        this.titleTh.setText(square.name);
-        this.titleEn.setText(square.nameEn);
+        const titleTh = document.getElementById('hover-card-title-th');
+        const titleEn = document.getElementById('hover-card-title-en');
+        if (titleTh) titleTh.textContent = square.name || '';
+        if (titleEn) titleEn.textContent = square.nameEn || '';
 
-        // Header stripe color
-        if (square.type === 'property') {
-            const headerColor = Phaser.Display.Color.HexStringToColor(square.color || '#FFFFFF').color;
-            this.headerStripe.fillStyle(headerColor, 1);
-            this.headerStripe.fillRoundedRect(2, 2, this.cardWidth - 4, 60, { tl: 10, tr: 10, bl: 0, br: 0 });
-            this.titleTh.setColor('#FFFFFF');
-            this.titleEn.setColor('#EEEEEE');
-        } else {
-            // Dark gray stripe for railroads, utilities, taxes etc.
-            this.headerStripe.fillStyle(0x1a2333, 1);
-            this.headerStripe.fillRoundedRect(2, 2, this.cardWidth - 4, 60, { tl: 10, tr: 10, bl: 0, br: 0 });
-            this.titleTh.setColor('#EAB308');
-            this.titleEn.setColor('#BBBBBB');
+        // Header stripe color based on property type / color group
+        const header = document.getElementById('hover-card-header');
+        if (header) {
+            if (square.type === 'property' && square.color) {
+                header.style.backgroundColor = square.color;
+                header.style.color = '#FFFFFF';
+                if (titleTh) titleTh.style.color = '#FFFFFF';
+                if (titleEn) titleEn.style.color = '#EEEEEE';
+            } else {
+                // Dark gray stripe for non-colored properties
+                header.style.backgroundColor = '#1a2333';
+                header.style.color = 'var(--color-gold)';
+                if (titleTh) titleTh.style.color = 'var(--color-gold)';
+                if (titleEn) titleEn.style.color = '#BBBBBB';
+            }
         }
 
-        // Draw Divider
-        this.divider.lineStyle(1, 0x334155, 0.5);
-        this.divider.lineBetween(15, 195, this.cardWidth - 15, 195);
+        // Render rows dynamically
+        const rentRows = [];
+        const formatVal = (val) => typeof val === 'number' ? `฿${val.toLocaleString('th-TH')}` : '';
 
-        // Rent rows loading
-        const rowLabels = [];
-        const rowValues = [];
+        // Helper to reset rent rows to default labels
+        const resetRentRowLabels = () => {
+            const defaultLabels = [
+                'ค่าเช่าเริ่มต้น / Rent',
+                '🏠 1 บ้าน / 1 House',
+                '🏠🏠 2 บ้าน / 2 Houses',
+                '🏠🏠🏠 3 บ้าน / 3 Houses',
+                '🏠🏠🏠🏠 4 บ้าน / 4 Houses',
+                '🏨 โรงแรม / Hotel'
+            ];
+            for (let i = 0; i < 6; i++) {
+                const row = document.getElementById(`hover-card-rent-${i}`);
+                if (row) {
+                    const labelSpan = row.parentElement.querySelector('span:first-child');
+                    if (labelSpan) labelSpan.textContent = defaultLabels[i];
+                    row.textContent = '-';
+                }
+            }
+        };
+
+        resetRentRowLabels();
 
         if (square.type === 'property') {
             const rent = square.rent || [0, 0, 0, 0, 0, 0];
-            rowLabels.push('ค่าเช่าเริ่มต้น / Base Rent', 'บ้าน 1 หลัง / 1 House', 'บ้าน 2 หลัง / 2 Houses', 'บ้าน 3 หลัง / 3 Houses', 'บ้าน 4 หลัง / 4 Houses', 'โรงแรม / Hotel');
-            rowValues.push(formatMoney(rent[0]), formatMoney(rent[1]), formatMoney(rent[2]), formatMoney(rent[3]), formatMoney(rent[4]), formatMoney(rent[5]));
+            for (let i = 0; i < 6; i++) {
+                const el = document.getElementById(`hover-card-rent-${i}`);
+                if (el) el.textContent = formatVal(rent[i]);
+            }
 
-            this.buildCostText.setText(`ค่าสร้างสิ่งปลูกสร้าง: ${formatMoney(square.buildCost)} / หลัง`);
-            this.mortgageText.setText(`ราคาจำนอง: ${formatMoney(square.mortgageValue)}`);
-            this.buildCostText.setVisible(true);
-            this.mortgageText.setVisible(true);
+            const buildCostRow = document.getElementById('hover-card-build-cost-row');
+            const buildCost = document.getElementById('hover-card-build-cost');
+            if (buildCostRow && buildCost) {
+                buildCostRow.style.display = 'flex';
+                buildCost.textContent = `${formatVal(square.buildCost)} / หลัง`;
+            }
         } else if (square.type === 'railroad') {
-            const rent = square.rent || [250, 500, 1000, 2000];
-            rowLabels.push('ครองสถานี 1 แห่ง', 'ครองสถานี 2 แห่ง', 'ครองสถานี 3 แห่ง', 'ครองสถานี 4 แห่ง', '', '');
-            rowValues.push(formatMoney(rent[0]), formatMoney(rent[1]), formatMoney(rent[2]), formatMoney(rent[3]), '', '');
+            const rrRent = square.rent || [250, 500, 1000, 2000];
+            
+            // Adjust labels for railroads
+            const rrLabels = [
+                'ครองสถานี 1 แห่ง / 1 Station',
+                'ครองสถานี 2 แห่ง / 2 Stations',
+                'ครองสถานี 3 แห่ง / 3 Stations',
+                'ครองสถานี 4 แห่ง / 4 Stations',
+                '',
+                ''
+            ];
 
-            this.buildCostText.setText('');
-            this.mortgageText.setText(`ราคาจำนอง: ${formatMoney(square.mortgageValue)}`);
-            this.buildCostText.setVisible(false);
-            this.mortgageText.setVisible(true);
+            for (let i = 0; i < 6; i++) {
+                const el = document.getElementById(`hover-card-rent-${i}`);
+                if (el) {
+                    const labelSpan = el.parentElement.querySelector('span:first-child');
+                    if (labelSpan) labelSpan.textContent = rrLabels[i] || '';
+                    el.textContent = rrLabels[i] ? formatVal(rrRent[i]) : '';
+                }
+            }
+
+            const buildCostRow = document.getElementById('hover-card-build-cost-row');
+            if (buildCostRow) buildCostRow.style.display = 'none';
         } else if (square.type === 'utility') {
-            rowLabels.push('ครองสาธารณูปโภค 1 แห่ง:', 'แต้มเต๋า x 40 เท่า', 'ครองสาธารณูปโภค 2 แห่ง:', 'แต้มเต๋า x 100 เท่า', '', '');
-            rowValues.push('', '', '', '', '', '');
+            const utilLabels = [
+                'ครอง 1 แห่ง / 1 Utility',
+                'แต้มเต๋า x 40 เท่า / 40x Dice',
+                'ครอง 2 แห่ง / 2 Utilities',
+                'แต้มเต๋า x 100 เท่า / 100x Dice',
+                '',
+                ''
+            ];
 
-            this.buildCostText.setText('');
-            this.mortgageText.setText(`ราคาจำนอง: ${formatMoney(square.mortgageValue)}`);
-            this.buildCostText.setVisible(false);
-            this.mortgageText.setVisible(true);
-        } else if (square.type === 'tax') {
-            rowLabels.push('ภาษีที่ต้องชำระ:', formatMoney(square.cost), '', '', '', '');
-            rowValues.push('', '', '', '', '', '');
-            
-            this.buildCostText.setVisible(false);
-            this.mortgageText.setVisible(false);
+            for (let i = 0; i < 6; i++) {
+                const el = document.getElementById(`hover-card-rent-${i}`);
+                if (el) {
+                    const labelSpan = el.parentElement.querySelector('span:first-child');
+                    if (labelSpan) labelSpan.textContent = utilLabels[i] || '';
+                    el.textContent = ''; // utilities rent is based on dice multiplier text
+                }
+            }
+
+            const buildCostRow = document.getElementById('hover-card-build-cost-row');
+            if (buildCostRow) buildCostRow.style.display = 'none';
         } else {
-            // General Board Tiles (GO, Jail, Free Parking, etc.)
-            rowLabels.push('ประเภทช่อง:', square.type.toUpperCase(), '', '', '', '');
-            rowValues.push('', '', '', '', '', '');
-            
-            this.buildCostText.setVisible(false);
-            this.mortgageText.setVisible(false);
+            // Not a property type that should display a card
+            return false;
         }
 
-        // Apply rent texts
-        for (let i = 0; i < 6; i++) {
-            const label = rowLabels[i] || '';
-            const val = rowValues[i] || '';
-            this.rentTexts[i].label.setText(label);
-            this.rentTexts[i].val.setText(val);
+        // Mortgage value
+        const mortgageRow = document.getElementById('hover-card-mortgage-row');
+        const mortgage = document.getElementById('hover-card-mortgage');
+        if (mortgageRow && mortgage) {
+            if (square.mortgageValue) {
+                mortgageRow.style.display = 'flex';
+                mortgage.textContent = formatVal(square.mortgageValue);
+            } else {
+                mortgageRow.style.display = 'none';
+            }
         }
 
-        // Owner Info display
-        if (ownerName) {
-            this.ownerText.setText(`เจ้าของ: ${ownerName}`);
-            this.ownerText.setColor(ownerColor || '#EAB308');
-            this.ownerText.setVisible(true);
-        } else {
-            this.ownerText.setVisible(false);
+        // Owner Info
+        const ownerRow = document.getElementById('hover-card-owner-row');
+        const ownerVal = document.getElementById('hover-card-owner');
+        if (ownerRow && ownerVal) {
+            if (ownerName) {
+                ownerRow.style.display = 'flex';
+                ownerVal.textContent = ownerName;
+                ownerVal.style.color = ownerColor || 'var(--color-gold)';
+            } else {
+                ownerRow.style.display = 'none';
+            }
         }
 
-        // Mortgage status display
-        if (isMortgaged) {
-            this.mortgageStatusText.setText('⚠️ ถูกจำนอง / MORTGAGED');
-            this.mortgageStatusText.setVisible(true);
-        } else {
-            this.mortgageStatusText.setVisible(false);
+        // Mortgage Status
+        const mortgageStatus = document.getElementById('hover-card-mortgage-status');
+        if (mortgageStatus) {
+            mortgageStatus.style.display = isMortgaged ? 'block' : 'none';
         }
+        
+        return true;
     }
 
     /**
      * Show card at x,y coordinate ensuring it doesn't clip boundaries.
-     * @param {number} x
-     * @param {number} y
+     * @param {number} x - Client X coordinate
+     * @param {number} y - Client Y coordinate
      */
     show(x, y) {
-        // Bound checks to prevent drawing off-screen
-        let newX = x + 15;
-        let newY = y - 100;
+        if (!this.element) return;
 
-        if (newX + this.cardWidth > this.scene.sys.game.config.width) {
-            newX = x - this.cardWidth - 15;
-        }
-        if (newY + this.cardHeight > this.scene.sys.game.config.height) {
-            newY = this.scene.sys.game.config.height - this.cardHeight - 15;
-        }
-        if (newY < 0) {
-            newY = 15;
-        }
+        // Position and offset from cursor
+        const offset = 15;
+        let left = x + offset;
+        let top = y + offset;
 
-        this.setPosition(newX, newY);
-        this.setVisible(true);
+        // Bounds check (prevent clipping viewport)
+        const cardWidth = this.element.offsetWidth || 250;
+        const cardHeight = this.element.offsetHeight || 300;
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        if (left + cardWidth > viewportWidth) {
+            left = x - cardWidth - offset;
+        }
+        if (top + cardHeight > viewportHeight) {
+            top = viewportHeight - cardHeight - offset;
+        }
+        if (left < 0) left = offset;
+        if (top < 0) top = offset;
+
+        this.element.style.left = `${left}px`;
+        this.element.style.top = `${top}px`;
+        this.element.style.display = 'block';
     }
 
     /**
      * Hide the card container.
      */
     hide() {
-        this.setVisible(false);
+        if (this.element) {
+            this.element.style.display = 'none';
+        }
     }
 }

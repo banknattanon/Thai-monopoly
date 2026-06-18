@@ -201,3 +201,17 @@
     background-color: var(--color-danger);
     border-radius: 4px;
 }
+
+/* Playwright Test Targets */
+.money-fly-up {
+    position: absolute;
+    font-size: 24px;
+    font-weight: bold;
+    font-family: 'Outfit', sans-serif;
+    pointer-events: none;
+    z-index: 9999;
+    animation: moneyFly 2s ease-out forwards;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+}
+.money-positive { color: #4ade80; }
+.money-negative { color: #ef4444; }

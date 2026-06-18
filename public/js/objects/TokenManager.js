@@ -133,9 +133,10 @@ export default class TokenManager {
                         duration: 300,
                         ease: 'Quad.easeInOut',
                         onStart: () => {
-                            // Sound effects or tiny hop effects can go here
-                            if (tileIndex === 0 && passedGo && i === path.length - 1) {
-                                // Flashes GO or sparks if needed
+                            if (tileIndex === 0 && passedGo) {
+                                if (this.scene.emitGoConfetti) {
+                                    this.scene.emitGoConfetti(coords.x + this.boardOffsetX, coords.y + this.boardOffsetY);
+                                }
                             }
                         }
                     };
@@ -203,11 +204,6 @@ export default class TokenManager {
         const centerY = baseCoords.y + this.boardOffsetY;
 
         // Offset layout patterns (up to 6 players)
-        // 1 player: centered
-        // 2 players: horizontal side-by-side
-        // 3 players: triangular
-        // 4 players: 2x2 grid
-        // 5+ players: hexagon ring + center
         const getOffset = (index, total) => {
             if (total === 1) return { x: 0, y: 0 };
             if (total === 2) {

@@ -15,6 +15,9 @@ export default class BootScene extends Phaser.Scene {
             fill: '#EAB308'
         }).setOrigin(0.5);
 
+        // Load the beautiful board background image
+        this.load.image('board_bg', 'assets/images/board_center.png');
+
         // Animate loading text
         this.tweens.add({
             targets: loadingText,

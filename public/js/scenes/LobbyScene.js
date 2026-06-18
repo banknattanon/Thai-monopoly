@@ -114,7 +114,10 @@ export default class LobbyScene extends Phaser.Scene {
                 if (this.isHost) {
                     const code = codeDisplay.textContent;
                     if (code && code !== 'XXXXXX') {
+                        const personalitySelect = document.getElementById('select-bot-personality');
+                        const personality = personalitySelect ? personalitySelect.value : 'normal';
                         const bot = new BotClient(code);
+                        bot.personality = personality;
                         bot.connect();
                         this.activeBots.push(bot);
                     }
@@ -205,18 +208,18 @@ export default class LobbyScene extends Phaser.Scene {
         socketManager.on('room-joined', (data) => {
             this.localPlayerId = data.playerId;
             this.handleRoomJoined(data.roomState);
-            const addBotBtn = document.getElementById('btn-add-bot');
-            if (addBotBtn) {
-                addBotBtn.style.display = this.isHost ? 'inline-block' : 'none';
+            const botControls = document.getElementById('bot-controls');
+            if (botControls) {
+                botControls.style.display = this.isHost ? 'flex' : 'none';
             }
         });
 
         // Host Transferred
         socketManager.on('host-transferred', ({ newHostId }) => {
             this.isHost = (this.localPlayerId === newHostId);
-            const addBotBtn = document.getElementById('btn-add-bot');
-            if (addBotBtn) {
-                addBotBtn.style.display = this.isHost ? 'inline-block' : 'none';
+            const botControls = document.getElementById('bot-controls');
+            if (botControls) {
+                botControls.style.display = this.isHost ? 'flex' : 'none';
             }
             this.updateHostControls();
         });
@@ -256,14 +259,16 @@ export default class LobbyScene extends Phaser.Scene {
         // Host gets start button, normal players get ready button
         const startBtn = document.getElementById('btn-start-game');
         const readyBtn = document.getElementById('btn-ready');
-        const addBotBtn = document.getElementById('btn-add-bot');
+        const botControls = document.getElementById('bot-controls');
         
         if (this.isHost) {
             if (startBtn) startBtn.style.display = 'block';
             if (readyBtn) readyBtn.style.display = 'none';
+            if (botControls) botControls.style.display = 'flex';
         } else {
             if (startBtn) startBtn.style.display = 'none';
             if (readyBtn) readyBtn.style.display = 'block';
+            if (botControls) botControls.style.display = 'none';
         }
 
         // Toggle host setting permissions

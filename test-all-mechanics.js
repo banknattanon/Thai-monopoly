@@ -274,6 +274,54 @@ runTest('Chance & Community Chest Card Effects Loop', () => {
     });
 });
 
+// ----------------------------------------------------
+// 8. Dice Odd/Even Selector Mechanics Test
+// ----------------------------------------------------
+runTest('Dice Odd/Even Selector Rules & Validation', () => {
+    const engine = new GameEngine(mockPlayers, settings);
+
+    // 1. Verify engine.rollDice('odd') always yields an odd sum (run 50 times to be sure)
+    for (let i = 0; i < 50; i++) {
+        engine.turnPhase = 'roll';
+        const result = engine.rollDice('odd');
+        const sum = result.dice1 + result.dice2;
+        assert.strictEqual(sum % 2 !== 0, true, `Expected odd sum, got ${sum} (${result.dice1} + ${result.dice2})`);
+    }
+
+    // 2. Verify engine.rollDice('even') always yields an even sum (run 50 times to be sure)
+    for (let i = 0; i < 50; i++) {
+        engine.turnPhase = 'roll';
+        const result = engine.rollDice('even');
+        const sum = result.dice1 + result.dice2;
+        assert.strictEqual(sum % 2 === 0, true, `Expected even sum, got ${sum} (${result.dice1} + ${result.dice2})`);
+    }
+
+    // 3. Verify passing matched custom dice works
+    engine.turnPhase = 'roll';
+    const matchOdd = engine.rollDice('odd', 3, 4);
+    assert.strictEqual(matchOdd.total, 7);
+
+    engine.turnPhase = 'roll';
+    const matchEven = engine.rollDice('even', 2, 4);
+    assert.strictEqual(matchEven.total, 6);
+
+    // 4. Verify passing mismatched custom dice throws an error
+    engine.turnPhase = 'roll';
+    assert.throws(() => {
+        engine.rollDice('odd', 2, 4);
+    }, /Dice sum must be odd/);
+
+    engine.turnPhase = 'roll';
+    assert.throws(() => {
+        engine.rollDice('even', 3, 4);
+    }, /Dice sum must be even/);
+    
+    // 5. Verify invalid selection defaults to normal
+    engine.turnPhase = 'roll';
+    const normalResult = engine.rollDice('invalid_selection', 3, 4);
+    assert.strictEqual(normalResult.total, 7);
+});
+
 console.log('\n==================================================');
 console.log('🎉 ALL GAME MECHANICS TESTS COMPLETED SUCCESSFULLY! 🎉');
 console.log('==================================================\n');

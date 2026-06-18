@@ -2,13 +2,14 @@
 
 import socketManager from '../managers/SocketManager.js';
 import chatManager from '../managers/ChatManager.js';
-import tradeManager from '../managers/TradeManager.js';
+
 import BoardRenderer from '../objects/BoardRenderer.js';
 import TokenManager from '../objects/TokenManager.js';
 import DiceManager from '../objects/DiceManager.js';
 import PropertyCard from '../objects/PropertyCard.js';
 import audioManager from '../utils/audio.js';
 import { BOARD_SQUARES } from '../utils/constants.js';
+import { getSquareCoords } from '../utils/helpers.js';
 
 export default class GameScene extends Phaser.Scene {
     constructor() {
@@ -48,8 +49,7 @@ export default class GameScene extends Phaser.Scene {
         this.diceManager = new DiceManager(this, this.boardOffsetX + boardCenter, this.boardOffsetY + boardCenter);
 
         // Initialize Managers with Local Player Context
-        chatManager.init();
-        tradeManager.init(this.localPlayerId);
+        chatManager.init(this.localPlayerId);
 
         // Spawn initial tokens for all active players
         this.gameState.players.forEach(p => {
@@ -72,7 +72,8 @@ export default class GameScene extends Phaser.Scene {
      * Binds hover popup and click actions on the BoardRenderer.
      */
     setupBoardInteractionListeners() {
-        this.events.on('tile-hover', ({ square, x, y }) => {
+        this.events.on('tile-hover', ({ square, pointer }) => {
+            if (!pointer) return;
             // Find current owner data if any
             const ownerId = this.gameState.propertyOwners[square.position];
             const owner = ownerId ? this.gameState.players.find(p => p.id === ownerId) : null;
@@ -83,7 +84,7 @@ export default class GameScene extends Phaser.Scene {
             const hasHotel = propState ? propState.hasHotel : false;
             const isMortgaged = propState ? propState.isMortgaged : false;
 
-            this.propertyCard.updateData(
+            const isValid = this.propertyCard.updateData(
                 square,
                 owner ? owner.name : null,
                 owner ? owner.color.hex : null,
@@ -91,7 +92,28 @@ export default class GameScene extends Phaser.Scene {
                 hasHotel,
                 isMortgaged
             );
-            this.propertyCard.show(x, y);
+            
+            this.currentSquareIsValid = isValid;
+
+            if (isValid) {
+                // Map coordinates dynamically with offset/bounds protection
+                const canvas = this.sys.game.canvas;
+                const rect = canvas.getBoundingClientRect();
+                const clientX = pointer.event ? pointer.event.clientX : (rect.left + pointer.x);
+                const clientY = pointer.event ? pointer.event.clientY : (rect.top + pointer.y);
+                this.propertyCard.show(clientX, clientY);
+            } else {
+                this.propertyCard.hide();
+            }
+        });
+
+        this.events.on('tile-hover-move', ({ pointer }) => {
+            if (!pointer || !this.currentSquareIsValid) return;
+            const canvas = this.sys.game.canvas;
+            const rect = canvas.getBoundingClientRect();
+            const clientX = pointer.event ? pointer.event.clientX : (rect.left + pointer.x);
+            const clientY = pointer.event ? pointer.event.clientY : (rect.top + pointer.y);
+            this.propertyCard.show(clientX, clientY);
         });
 
         this.events.on('tile-out', () => {
@@ -101,6 +123,92 @@ export default class GameScene extends Phaser.Scene {
         this.events.on('tile-click', ({ square }) => {
             // Hook up build / mortgage / trade selections if appropriate
             this.events.emit('tile-selected-action', square);
+        });
+
+        // Hide card if clicking anywhere else (e.g., background)
+        this.input.on('pointerdown', (pointer, currentlyOver) => {
+            if (currentlyOver.length === 0) {
+                this.propertyCard.hide();
+            }
+        });
+    }
+
+    /**
+     * Programmatically emit sparkle particles on a tile when upgraded.
+     */
+    emitUpgradeSparkles(x, y, color = 0x10b981) {
+        // Create basic white star/sparkle texture programmatically if not exists
+        if (!this.textures.exists('sparkle')) {
+            const canvas = this.textures.createCanvas('sparkle', 16, 16);
+            const ctx = canvas.context;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(8, 0);
+            ctx.quadraticCurveTo(8, 8, 16, 8);
+            ctx.quadraticCurveTo(8, 8, 8, 16);
+            ctx.quadraticCurveTo(8, 8, 0, 8);
+            ctx.quadraticCurveTo(8, 8, 8, 0);
+            ctx.closePath();
+            ctx.fill();
+            canvas.refresh();
+        }
+
+        const emitter = this.add.particles(x, y, 'sparkle', {
+            speed: { min: 20, max: 120 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 1.0, end: 0 },
+            alpha: { start: 1.0, end: 0 },
+            lifespan: 800,
+            quantity: 25,
+            tint: color,
+            blendMode: 'ADD',
+            emitting: false
+        });
+
+        emitter.explode(25);
+        
+        // Auto-cleanup emitter
+        this.time.delayedCall(1000, () => {
+            emitter.destroy();
+        });
+    }
+
+    /**
+     * Programmatically emit multi-colored confetti sparkles when crossing GO.
+     */
+    emitGoConfetti(x, y) {
+        if (!this.textures.exists('sparkle')) {
+            const canvas = this.textures.createCanvas('sparkle', 16, 16);
+            const ctx = canvas.context;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(8, 0);
+            ctx.quadraticCurveTo(8, 8, 16, 8);
+            ctx.quadraticCurveTo(8, 8, 8, 16);
+            ctx.quadraticCurveTo(8, 8, 0, 8);
+            ctx.quadraticCurveTo(8, 8, 8, 0);
+            ctx.closePath();
+            ctx.fill();
+            canvas.refresh();
+        }
+
+        const colors = [0xd4af37, 0x3b82f6, 0x10b981, 0xef4444, 0xec4899];
+        colors.forEach(color => {
+            const emitter = this.add.particles(x, y, 'sparkle', {
+                speed: { min: 40, max: 180 },
+                angle: { min: 0, max: 360 },
+                scale: { start: 1.2, end: 0 },
+                alpha: { start: 1.0, end: 0 },
+                lifespan: 1200,
+                quantity: 12,
+                tint: color,
+                blendMode: 'ADD',
+                emitting: false
+            });
+            emitter.explode(12);
+            this.time.delayedCall(1500, () => {
+                emitter.destroy();
+            });
         });
     }
 
@@ -136,13 +244,10 @@ export default class GameScene extends Phaser.Scene {
             if (uiScene && uiScene.scene.isActive()) {
                 uiScene.updateState(this.gameState);
             }
-
-            tradeManager.updatePlayers(this.gameState.players);
         });
 
         // Dice rolled
         socketManager.on('dice-rolled', async (data) => {
-            // Play dice rolling sound
             audioManager.playDiceRoll();
 
             const roller = this.gameState.players.find(p => p.id === data.playerId);
@@ -155,7 +260,6 @@ export default class GameScene extends Phaser.Scene {
 
             await this.diceManager.roll(data.dice1, data.dice2, data.isDouble);
 
-            // Re-sync after roll finishes animation
             if (uiScene) uiScene.updateState(this.gameState);
         });
 
@@ -201,7 +305,6 @@ export default class GameScene extends Phaser.Scene {
 
         // Property purchased
         socketManager.on('property-bought', (data) => {
-            // Play buying sound
             audioManager.playBuyProperty();
 
             const buyer = this.gameState.players.find(p => p.id === data.playerId);
@@ -212,20 +315,30 @@ export default class GameScene extends Phaser.Scene {
 
         // House built
         socketManager.on('house-built', (data) => {
-            // Play building/buy sound
             audioManager.playBuyProperty();
 
             const sqName = BOARD_SQUARES[data.position].name;
             chatManager.addSystemMessage(`🏠 สร้างบ้านสำเร็จที่ ${sqName} (มีบ้านทั้งหมด ${data.houses} หลัง)`);
+
+            // Emit sparkle upgrades (green sparkles)
+            const coords = getSquareCoords(data.position);
+            const x = coords.x + this.boardOffsetX;
+            const y = coords.y + this.boardOffsetY;
+            this.emitUpgradeSparkles(x, y, 0x10b981);
         });
 
         // Hotel built
         socketManager.on('hotel-built', (data) => {
-            // Play building/buy sound
             audioManager.playBuyProperty();
 
             const sqName = BOARD_SQUARES[data.position].name;
             chatManager.addSystemMessage(`🏨 สร้างโรงแรมสำเร็จที่ ${sqName}!`);
+
+            // Emit hotel upgrade sparkle (red sparkles)
+            const coords = getSquareCoords(data.position);
+            const x = coords.x + this.boardOffsetX;
+            const y = coords.y + this.boardOffsetY;
+            this.emitUpgradeSparkles(x, y, 0xef4444);
         });
 
         // Property mortgaged
@@ -279,7 +392,6 @@ export default class GameScene extends Phaser.Scene {
 
         // Card Drawn
         socketManager.on('card-drawn', (data) => {
-            // Play card draw sound
             audioManager.playDrawCard();
 
             const drawer = this.gameState.players.find(p => p.id === data.playerId);
@@ -298,7 +410,6 @@ export default class GameScene extends Phaser.Scene {
             const cardEn = document.getElementById('card-text-en');
 
             if (cardDialog && cardElement) {
-                // Apply classes
                 if (data.cardType === 'chance') {
                     cardElement.className = 'monopoly-card chance-card';
                     if (categoryTitle) categoryTitle.textContent = 'โชคชะตา / Chance';
@@ -312,7 +423,6 @@ export default class GameScene extends Phaser.Scene {
                 if (cardTh) cardTh.textContent = cardNameTh;
                 if (cardEn) cardEn.textContent = cardNameEn;
 
-                // Open Modal Dialog
                 cardDialog.showModal();
             }
         });
@@ -330,23 +440,8 @@ export default class GameScene extends Phaser.Scene {
             }
         });
 
-        // Trade proposal received
-        socketManager.on('trade-proposed', (data) => {
-            tradeManager.showIncomingTrade(data);
-        });
-
-        // Trade outcome resolved
-        socketManager.on('trade-completed', (data) => {
-            if (data.accepted) {
-                chatManager.addSystemMessage(`🤝 การแลกเปลี่ยนเสร็จสมบูรณ์!`);
-            } else {
-                chatManager.addSystemMessage(`❌ การเสนอแลกเปลี่ยนถูกปฏิเสธ`);
-            }
-        });
-
         // Player declared bankruptcy
         socketManager.on('player-bankrupt', (data) => {
-            // Play bankruptcy sound
             audioManager.playBankruptcy();
 
             const loser = this.gameState.players.find(p => p.id === data.playerId);
@@ -365,7 +460,13 @@ export default class GameScene extends Phaser.Scene {
             const winner = this.gameState.players.find(p => p.id === data.winnerId);
             const winnerName = winner ? `${winner.avatar} ${winner.name}` : 'ผู้เล่น';
             
-            chatManager.addSystemMessage(`🏆 จบเกม! ผู้ชนะคือ ${winnerName} 🏆`);
+            let reasonText = '';
+            if (data.reason === 'tourism_victory') reasonText = ' (ชนะแบบท่องเที่ยว / Tourism Victory)';
+            else if (data.reason === 'line_victory') reasonText = ' (ชนะแบบเหมาแถว / Line Victory)';
+            else if (data.reason === 'triple_victory') reasonText = ' (ชนะแบบ 3 สี / Triple Victory)';
+            else if (data.reason === 'bankrupt') reasonText = ' (ผู้เล่นอื่นล้มละลาย / Last Man Standing)';
+
+            chatManager.addSystemMessage(`🏆 จบเกม! ผู้ชนะคือ ${winnerName}${reasonText} 🏆`);
 
             // Pop up game over dialog
             const goDialog = document.getElementById('gameover-dialog');
@@ -381,7 +482,6 @@ export default class GameScene extends Phaser.Scene {
                 if (statsList && data.stats) {
                     statsList.innerHTML = '';
                     
-                    // stats is array: { name, money, netWorth, propertiesCount }
                     data.stats.forEach(st => {
                         const item = document.createElement('div');
                         item.className = 'gameover-stat-row';

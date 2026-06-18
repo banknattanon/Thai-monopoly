@@ -36,8 +36,6 @@ class GameEngine {
         this.propertyOwners = {};  // { position: playerId }
         this.freeParkingPot = 0;
         this.turnPhase = 'roll';   // 'roll' | 'action' | 'end'
-        this.activeAuction = null;
-        this.activeTrades = new Map();
         this.rolledDoublesExtraTurn = false;
 
         // Initialize structures
@@ -65,9 +63,39 @@ class GameEngine {
         return this.players[this.currentPlayerIndex];
     }
 
-    rollDice() {
-        const dice1 = Math.floor(Math.random() * 6) + 1;
-        const dice2 = Math.floor(Math.random() * 6) + 1;
+    rollDice(selection = 'normal', customDice1 = null, customDice2 = null) {
+        if (selection !== 'odd' && selection !== 'even') {
+            selection = 'normal';
+        }
+
+        let dice1, dice2;
+        if (customDice1 !== null && customDice2 !== null) {
+            const sum = customDice1 + customDice2;
+            if (selection === 'odd' && sum % 2 === 0) {
+                throw new Error('Dice sum must be odd when selecting odd / ผลรวมลูกเต๋าต้องเป็นคี่เมื่อเลือกคี่');
+            }
+            if (selection === 'even' && sum % 2 !== 0) {
+                throw new Error('Dice sum must be even when selecting even / ผลรวมลูกเต๋าต้องเป็นคู่เมื่อเลือกคู่');
+            }
+            dice1 = customDice1;
+            dice2 = customDice2;
+        } else {
+            if (selection === 'odd') {
+                do {
+                    dice1 = Math.floor(Math.random() * 6) + 1;
+                    dice2 = Math.floor(Math.random() * 6) + 1;
+                } while ((dice1 + dice2) % 2 === 0);
+            } else if (selection === 'even') {
+                do {
+                    dice1 = Math.floor(Math.random() * 6) + 1;
+                    dice2 = Math.floor(Math.random() * 6) + 1;
+                } while ((dice1 + dice2) % 2 !== 0);
+            } else {
+                dice1 = Math.floor(Math.random() * 6) + 1;
+                dice2 = Math.floor(Math.random() * 6) + 1;
+            }
+        }
+
         const total = dice1 + dice2;
         const isDouble = (dice1 === dice2);
 
@@ -110,16 +138,22 @@ class GameEngine {
 
         result.landingEffect = this.resolveLanding(player.id, total);
 
-        // Check if landing effect is buy-option, OR if it was a card that triggered a move ending in a buy-option!
-        let hasBuyOption = (result.landingEffect && result.landingEffect.type === 'buy-option');
+        // Check if landing effect triggers an action phase
+        let hasActionOption = false;
+        if (result.landingEffect) {
+            const type = result.landingEffect.type;
+            if (type === 'buy-option' || type === 'rent-and-takeover' || type === 'build-option') {
+                hasActionOption = true;
+            }
+        }
         if (result.landingEffect && result.landingEffect.type === 'card' && result.landingEffect.cardResults) {
-            const hasNestedBuy = result.landingEffect.cardResults.some(r => r.type === 'landing' && r.detail && r.detail.type === 'buy-option');
-            if (hasNestedBuy) {
-                hasBuyOption = true;
+            const hasNestedAction = result.landingEffect.cardResults.some(r => r.type === 'landing' && r.detail && ['buy-option', 'rent-and-takeover', 'build-option'].includes(r.detail.type));
+            if (hasNestedAction) {
+                hasActionOption = true;
             }
         }
 
-        if (hasBuyOption) {
+        if (hasActionOption) {
             this.turnPhase = 'action';
         } else {
             if (player.inJail) {
@@ -176,6 +210,11 @@ class GameEngine {
                         }
                         return { type: 'rent', ownerId, amount: rent };
                     }
+                } else {
+                    if (this.canBuildHouse(playerId, position) || this.canBuildHotel(playerId, position)) {
+                        return { type: 'build-option', property: square };
+                    }
+                    return { type: 'nothing' };
                 }
                 return { type: 'nothing' };
             } else {
@@ -285,8 +324,13 @@ class GameEngine {
             player.money -= square.price;
             this.propertyOwners[position] = playerId;
             player.properties.push(position);
+            
+            if (this.canBuildHouse(playerId, position) || this.canBuildHotel(playerId, position)) {
+                this.turnPhase = 'action';
+                return { success: true, cost: square.price, promptBuild: true };
+            }
             this.endTurnPhase();
-            return { success: true, cost: square.price };
+            return { success: true, cost: square.price, promptBuild: false };
         }
         return { success: false };
     }
@@ -305,8 +349,12 @@ class GameEngine {
             oldOwner.properties = oldOwner.properties.filter(pos => pos !== position);
             player.properties.push(position);
             
+            if (this.canBuildHouse(playerId, position) || this.canBuildHotel(playerId, position)) {
+                this.turnPhase = 'action';
+                return { success: true, promptBuild: true };
+            }
             this.endTurnPhase();
-            return { success: true };
+            return { success: true, promptBuild: false };
         }
         return { success: false };
     }
@@ -325,7 +373,7 @@ class GameEngine {
         if (this.board[position].isMortgaged) return false;
 
         const currentHouses = this.houses[position] || 0;
-        if (currentHouses >= 4 || this.hotels[position]) return false;
+        if (currentHouses >= 3 || this.hotels[position]) return false;
 
         return player.money >= square.buildCost;
     }
@@ -338,6 +386,7 @@ class GameEngine {
         const square = this.board[position];
         player.money -= square.buildCost;
         this.houses[position] = (this.houses[position] || 0) + 1;
+        this.endTurnPhase();
         return { success: true, cost: square.buildCost, totalHouses: this.houses[position] };
     }
 
@@ -349,7 +398,7 @@ class GameEngine {
 
         if (this.board[position].isMortgaged) return false;
 
-        if ((this.houses[position] || 0) !== 4 || this.hotels[position]) return false;
+        if ((this.houses[position] || 0) !== 3 || this.hotels[position]) return false;
 
         return player.money >= square.buildCost;
     }
@@ -363,6 +412,7 @@ class GameEngine {
         player.money -= square.buildCost;
         this.houses[position] = 0;
         this.hotels[position] = true;
+        this.endTurnPhase();
         return { success: true, cost: square.buildCost };
     }
 
@@ -452,7 +502,14 @@ class GameEngine {
             result.newPosition = moveResult.newPosition;
             result.passedGo = moveResult.passedGo;
             result.landingEffect = this.resolveLanding(playerId, total);
-            this.turnPhase = (result.landingEffect && result.landingEffect.type === 'buy-option') ? 'action' : 'end';
+            let hasActionOption = false;
+            if (result.landingEffect) {
+                const type = result.landingEffect.type;
+                if (type === 'buy-option' || type === 'rent-and-takeover' || type === 'build-option') {
+                    hasActionOption = true;
+                }
+            }
+            this.turnPhase = hasActionOption ? 'action' : 'end';
         } else {
             if (player.jailTurns >= 3) {
                 player.money -= 500;
@@ -464,7 +521,14 @@ class GameEngine {
                 result.newPosition = moveResult.newPosition;
                 result.passedGo = moveResult.passedGo;
                 result.landingEffect = this.resolveLanding(playerId, total);
-                if (result.landingEffect && result.landingEffect.type === 'buy-option') {
+                let hasActionOption = false;
+                if (result.landingEffect) {
+                    const type = result.landingEffect.type;
+                    if (type === 'buy-option' || type === 'rent-and-takeover' || type === 'build-option') {
+                        hasActionOption = true;
+                    }
+                }
+                if (hasActionOption) {
                     this.turnPhase = 'action';
                 } else {
                     this.endTurnPhase();
@@ -677,8 +741,66 @@ class GameEngine {
     checkGameOver() {
         const activePlayers = this.players.filter(p => !p.isBankrupt);
         if (activePlayers.length <= 1) {
-            return { isOver: true, winnerId: activePlayers[0] ? activePlayers[0].id : null };
+            return { isOver: true, winnerId: activePlayers[0] ? activePlayers[0].id : null, reason: 'bankrupt' };
         }
+
+        // Color groups mapping
+        const colorGroups = {
+            'brown': [1, 3],
+            'light-blue': [6, 8, 9],
+            'pink': [11, 13, 14],
+            'orange': [16, 18, 19],
+            'red': [21, 23, 24],
+            'yellow': [26, 27, 29],
+            'green': [31, 32, 34],
+            'dark-blue': [37, 39]
+        };
+
+        const tourismStations = [5, 15, 25, 35]; // Railroads
+        
+        // Lines
+        const lines = [
+            [1, 2, 3, 4, 5, 6, 7, 8, 9],
+            [11, 12, 13, 14, 15, 16, 17, 18, 19],
+            [21, 22, 23, 24, 25, 26, 27, 28, 29],
+            [31, 32, 33, 34, 35, 36, 37, 38, 39]
+        ];
+
+        // Filter lines to only include buyable properties
+        const buyableLines = lines.map(line => line.filter(pos => {
+            const sq = this.board[pos];
+            return sq && (sq.type === 'property' || sq.type === 'railroad' || sq.type === 'utility');
+        }));
+
+        for (const player of activePlayers) {
+            const props = player.properties;
+            
+            // 1. Tourism Victory (all 4 stations)
+            const hasAllTourism = tourismStations.every(pos => props.includes(pos));
+            if (hasAllTourism) {
+                return { isOver: true, winnerId: player.id, reason: 'tourism_victory' };
+            }
+
+            // 2. Triple Victory (3 color groups)
+            let completedGroups = 0;
+            for (const color in colorGroups) {
+                const group = colorGroups[color];
+                if (group.every(pos => props.includes(pos))) {
+                    completedGroups++;
+                }
+            }
+            if (completedGroups >= 3) {
+                return { isOver: true, winnerId: player.id, reason: 'triple_victory' };
+            }
+
+            // 3. Line Victory (all buyable properties on one side)
+            for (const line of buyableLines) {
+                if (line.length > 0 && line.every(pos => props.includes(pos))) {
+                    return { isOver: true, winnerId: player.id, reason: 'line_victory' };
+                }
+            }
+        }
+
         return { isOver: false };
     }
 
@@ -695,148 +817,6 @@ class GameEngine {
         }));
     }
 
-    startAuction(position) {
-        const square = this.board[position];
-        if (this.propertyOwners[position]) return null;
-
-        this.activeAuction = {
-            position,
-            highestBid: 0,
-            highestBidderId: null,
-            bids: []
-        };
-        return this.activeAuction;
-    }
-
-    placeBid(playerId, amount) {
-        if (!this.activeAuction) {
-            return { success: false, message: 'No active auction / ไม่มีประมูลที่กำลังดำเนินอยู่' };
-        }
-        const player = this.players.find(p => p.id === playerId);
-        if (!player || player.isBankrupt) {
-            return { success: false, message: 'Invalid bidder / ผู้เข้าประมูลไม่ถูกต้อง' };
-        }
-        if (amount <= this.activeAuction.highestBid) {
-            return { success: false, message: 'Bid must be higher than current highest bid / ยอดประมูลต้องสูงกว่ายอดสูงสุดปัจจุบัน' };
-        }
-        if (player.money < amount) {
-            return { success: false, message: 'Insufficient funds / เงินไม่พอสำหรับยอดประมูลนี้' };
-        }
-
-        this.activeAuction.highestBid = amount;
-        this.activeAuction.highestBidderId = playerId;
-        this.activeAuction.bids.push({ playerId, amount });
-        return { success: true, highestBid: amount };
-    }
-
-    endAuction() {
-        if (!this.activeAuction) return { winnerId: null };
-
-        const { position, highestBid, highestBidderId } = this.activeAuction;
-        if (highestBidderId) {
-            const winner = this.players.find(p => p.id === highestBidderId);
-            winner.money -= highestBid;
-            this.propertyOwners[position] = highestBidderId;
-            winner.properties.push(position);
-        }
-
-        const result = {
-            winnerId: highestBidderId,
-            position,
-            finalPrice: highestBid
-        };
-        this.activeAuction = null;
-        this.endTurnPhase();
-        return result;
-    }
-
-    proposeTrade(fromId, toId, offer, request) {
-        const proponent = this.players.find(p => p.id === fromId);
-        const target = this.players.find(p => p.id === toId);
-
-        if (!proponent || !target || proponent.isBankrupt || target.isBankrupt) return null;
-
-        const offerMoney = Number(offer.money) || 0;
-        const requestMoney = Number(request.money) || 0;
-        if (proponent.money < offerMoney || target.money < requestMoney) return null;
-
-        const offerProperties = offer.properties || [];
-        const requestProperties = request.properties || [];
-
-        const hasOfferPropError = offerProperties.some(pos => {
-            const sq = this.board[pos];
-            const hasBuildings = (this.houses[pos] || 0) > 0 || this.hotels[pos];
-            return this.propertyOwners[pos] !== fromId || hasBuildings;
-        });
-
-        const hasRequestPropError = requestProperties.some(pos => {
-            const sq = this.board[pos];
-            const hasBuildings = (this.houses[pos] || 0) > 0 || this.hotels[pos];
-            return this.propertyOwners[pos] !== toId || hasBuildings;
-        });
-
-        if (hasOfferPropError || hasRequestPropError) return null;
-
-        const tradeId = 't_' + Math.random().toString(36).substr(2, 9);
-        const trade = {
-            id: tradeId,
-            fromId,
-            toId,
-            offer: { money: offerMoney, properties: offerProperties },
-            request: { money: requestMoney, properties: requestProperties }
-        };
-        this.activeTrades.set(tradeId, trade);
-        return tradeId;
-    }
-
-    acceptTrade(tradeId) {
-        const trade = this.activeTrades.get(tradeId);
-        if (!trade) return { success: false };
-
-        const proponent = this.players.find(p => p.id === trade.fromId);
-        const target = this.players.find(p => p.id === trade.toId);
-
-        if (!proponent || !target || proponent.isBankrupt || target.isBankrupt) {
-            this.activeTrades.delete(tradeId);
-            return { success: false };
-        }
-
-        if (proponent.money < trade.offer.money || target.money < trade.request.money) {
-            this.activeTrades.delete(tradeId);
-            return { success: false };
-        }
-
-        const hasOfferPropError = trade.offer.properties.some(pos => this.propertyOwners[pos] !== trade.fromId);
-        const hasRequestPropError = trade.request.properties.some(pos => this.propertyOwners[pos] !== trade.toId);
-        if (hasOfferPropError || hasRequestPropError) {
-            this.activeTrades.delete(tradeId);
-            return { success: false };
-        }
-
-        proponent.money -= trade.offer.money;
-        target.money += trade.offer.money;
-        target.money -= trade.request.money;
-        proponent.money += trade.request.money;
-
-        trade.offer.properties.forEach(pos => {
-            proponent.properties = proponent.properties.filter(p => p !== pos);
-            this.propertyOwners[pos] = trade.toId;
-            target.properties.push(pos);
-        });
-
-        trade.request.properties.forEach(pos => {
-            target.properties = target.properties.filter(p => p !== pos);
-            this.propertyOwners[pos] = trade.fromId;
-            proponent.properties.push(pos);
-        });
-
-        this.activeTrades.delete(tradeId);
-        return { success: true, trade };
-    }
-
-    declineTrade(tradeId) {
-        this.activeTrades.delete(tradeId);
-    }
 
     endTurn() {
         let index = this.currentPlayerIndex;
@@ -860,7 +840,6 @@ class GameEngine {
             turnPhase: this.turnPhase,
             propertyOwners: this.propertyOwners,
             freeParkingPot: this.freeParkingPot,
-            activeAuction: this.activeAuction,
             currentTakeoverCost: this.currentTakeoverCost,
             board: this.board.map((sq, idx) => ({
                 ...sq,
