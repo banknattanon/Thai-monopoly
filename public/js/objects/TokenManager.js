@@ -155,7 +155,32 @@ export default class TokenManager {
      * @param {string} playerId
      */
     moveToJail(playerId) {
-        return this.moveToken(playerId, this.positions.get(playerId) || 0, 10, false);
+        return new Promise((resolve) => {
+            const token = this.tokens.get(playerId);
+            if (!token) return resolve();
+
+            const fromPos = this.positions.get(playerId) || 0;
+            const toPos = 10;
+            
+            this.positions.set(playerId, toPos);
+            const targetCoords = getSquareCoords(toPos);
+            
+            this.alignTokensOnSquare(fromPos);
+
+            this.scene.tweens.add({
+                targets: token,
+                x: targetCoords.x + this.boardOffsetX,
+                y: targetCoords.y + this.boardOffsetY,
+                scale: { from: 1.5, to: 1 },
+                alpha: { from: 0.2, to: 1 },
+                duration: 800,
+                ease: 'Power2.easeOut',
+                onComplete: () => {
+                    this.alignTokensOnSquare(toPos);
+                    resolve();
+                }
+            });
+        });
     }
 
     /**

@@ -180,6 +180,7 @@ export default class BotClient {
             if (this.gameState && this.gameState.currentPlayerId === this.playerId) {
                 if (this.gameState.turnPhase === 'roll') {
                     // Double rolled! Roll again!
+                    this.executeTurn();
                 } else if (this.gameState.turnPhase === 'end') {
                     // Before ending turn, check if money is negative and mortgage
                     this.autoMortgage();
