@@ -32,8 +32,11 @@ export default class UIScene extends Phaser.Scene {
         this.btnJailPay = document.getElementById('btn-jail-pay');
         this.btnJailCard = document.getElementById('btn-jail-card');
         this.btnJailRoll = document.getElementById('btn-jail-roll');
-        this.btnEndTurn = document.getElementById('btn-end-turn');
 
+        this.btnEndTurn = document.getElementById('btn-end-turn');
+        this.btnBankrupt = document.getElementById('btn-bankrupt');
+
+        // Setup DOM event listeners
         this.setupButtonListeners();
 
         // Listen for tile selection action from GameScene
@@ -101,6 +104,14 @@ export default class UIScene extends Phaser.Scene {
             }
         };
         if (this.btnEndTurn) this.btnEndTurn.onclick = () => socketManager.endTurn();
+        if (this.btnBankrupt) {
+            this.btnBankrupt.onclick = () => {
+                if (confirm("คุณแน่ใจหรือไม่ที่จะประกาศล้มละลาย? คุณจะออกจากเกมทันที / Are you sure you want to declare bankruptcy?")) {
+                    // For human player, we just let server assign target to current landing or bank
+                    socketManager.declareBankruptcy('bank');
+                }
+            };
+        }
 
         // Jail actions
         if (this.btnJailPay) this.btnJailPay.onclick = () => socketManager.jailAction('pay');
@@ -173,7 +184,7 @@ export default class UIScene extends Phaser.Scene {
             this.btnRoll, this.btnBuy, this.btnDecline,
             this.btnMortgage,
             this.btnJailPay, this.btnJailCard, this.btnJailRoll,
-            this.btnEndTurn
+            this.btnEndTurn, this.btnBankrupt
         ];
         btns.forEach(btn => {
             if (btn) btn.style.display = 'none';
@@ -279,6 +290,9 @@ export default class UIScene extends Phaser.Scene {
                     }
                 } else if (phase === 'end') {
                     if (this.btnEndTurn) this.btnEndTurn.style.display = 'block';
+                    if (this.btnBankrupt && me.money < 0) {
+                        this.btnBankrupt.style.display = 'block';
+                    }
                 }
             }
         }

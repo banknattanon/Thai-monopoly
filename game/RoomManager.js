@@ -477,6 +477,22 @@ class RoomManager {
         return false;
     }
 
+    handleDeclareBankruptcy(socket, targetId) {
+        const room = this.getRoomForSocket(socket);
+        if (!room || room.status !== 'playing' || !room.gameEngine) return;
+        const association = this.socketToPlayer.get(socket.id);
+        const engine = room.gameEngine;
+        const playerId = association.playerId;
+
+        const player = engine.players.find(p => p.id === playerId);
+        if (!player || player.isBankrupt) return;
+
+        engine.declareBankruptcy(playerId, targetId);
+        this.io.to(room.code).emit('player-bankrupt', { playerId, reason: 'voluntary' });
+        this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
+        this.checkVictory(room);
+    }
+
     handleBuyProperty(socket, position) {
         const room = this.getRoomForSocket(socket);
         if (!room || room.status !== 'playing' || !room.gameEngine) return;
@@ -984,6 +1000,9 @@ class RoomManager {
         });
         socket.on('end-turn', () => {
             this.handleEndTurn(socket);
+        });
+        socket.on('declare-bankruptcy', ({ targetId }) => {
+            this.handleDeclareBankruptcy(socket, targetId);
         });
 
         socket.on('send-chat', ({ message }) => {

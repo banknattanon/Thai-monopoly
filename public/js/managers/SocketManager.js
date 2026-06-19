@@ -169,6 +169,10 @@ class SocketManager {
         this.emit('end-turn');
     }
 
+    declareBankruptcy(targetId) {
+        this.emit('declare-bankruptcy', { targetId });
+    }
+
     // === Trade Events ===
     proposeTrade(targetId, offer, request) {
         this.emit('trade-propose', { targetId, offer, request });
