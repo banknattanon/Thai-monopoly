@@ -154,7 +154,7 @@ export default class UIScene extends Phaser.Scene {
         const position = square.position;
 
         if (this.buildMode === 'mortgage') {
-            const isMortgaged = this.gameState.properties[position]?.isMortgaged;
+            const isMortgaged = this.gameState.board[position]?.isMortgaged;
             if (isMortgaged) {
                 socketManager.unmortgageProperty(position);
             } else {
@@ -213,9 +213,6 @@ export default class UIScene extends Phaser.Scene {
         this.disableAllActions();
 
         if (me && !me.isBankrupt) {
-            // Always show trade button
-            if (this.btnTrade) this.btnTrade.style.display = 'block';
-
             // Show turn controls if it is my turn
             if (this.gameState.currentPlayerId === this.localPlayerId) {
                 const phase = this.gameState.turnPhase;
@@ -272,7 +269,7 @@ export default class UIScene extends Phaser.Scene {
                 } else if (phase === 'takeover') {
                     if (this.btnBuy) {
                         this.btnBuy.style.display = 'block';
-                        this.btnBuy.textContent = `⚔️ ซื้อต่อ (฿${this.gameState.currentTakeoverCost})`;
+                        this.btnBuy.textContent = `⚔️ ซื้อต่อ / Takeover (฿${(this.gameState.currentTakeoverCost || 0).toLocaleString()})`;
                         this.btnBuy.classList.remove('btn-success');
                         this.btnBuy.classList.add('btn-danger');
                     }
@@ -280,14 +277,6 @@ export default class UIScene extends Phaser.Scene {
                         this.btnDecline.style.display = 'block';
                         this.btnDecline.textContent = '❌ ข้าม / Skip';
                     }
-                } else if (phase === 'takeover') {
-                    if (this.btnBuy) {
-                        this.btnBuy.style.display = 'block';
-                        this.btnBuy.textContent = `⚔️ ซื้อต่อ / Takeover (฿${(this.gameState.currentTakeoverCost || 0).toLocaleString()})`;
-                        this.btnBuy.classList.remove('btn-success');
-                        this.btnBuy.classList.add('btn-danger');
-                    }
-                    if (this.btnDecline) this.btnDecline.style.display = 'block';
                 } else if (phase === 'end') {
                     if (this.btnEndTurn) this.btnEndTurn.style.display = 'block';
                 }
@@ -443,9 +432,11 @@ export default class UIScene extends Phaser.Scene {
                         } else {
                             socketManager.rollDice();
                         }
-                    } else if (this.gameState.turnPhase === 'buy_decision') {
+                    } else if (this.gameState.turnPhase === 'action') {
                         socketManager.declineProperty();
-                    } else if (this.gameState.turnPhase === 'post_roll') {
+                    } else if (this.gameState.turnPhase === 'takeover') {
+                        socketManager.declineTakeover();
+                    } else if (this.gameState.turnPhase === 'end') {
                         socketManager.endTurn();
                     }
                 }

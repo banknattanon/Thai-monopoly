@@ -223,7 +223,7 @@ class GameEngine {
         }
 
         if (square.type === 'tax') {
-            const taxAmount = (position === 4) ? 2000 : 1000;
+            const taxAmount = square.cost || square.amount || 1000;
             player.money -= taxAmount;
             if (this.settings.freeParkingRule) {
                 this.freeParkingPot += taxAmount;
@@ -593,7 +593,8 @@ class GameEngine {
             player.position = dest;
             results.push({ type: 'move', playerId, from: oldPos, to: dest, passedGo });
 
-            const subLanding = this.resolveLanding(playerId, 0);
+            const randomDice = Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
+            const subLanding = this.resolveLanding(playerId, randomDice);
             if (subLanding) {
                 results.push({ type: 'landing', detail: subLanding });
             }
@@ -826,6 +827,7 @@ class GameEngine {
 
         this.currentPlayerIndex = index;
         this.doublesCount = 0;
+        this.rolledDoublesExtraTurn = false;
         this.turnPhase = 'roll';
         return this.players[this.currentPlayerIndex].id;
     }

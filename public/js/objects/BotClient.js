@@ -171,6 +171,15 @@ export default class BotClient {
                     } else {
                         this.socket.emit('decline-property');
                     }
+                } else if (ownerId === this.playerId) {
+                    // Own property: build or skip
+                    this.handleBuildAction(currentPosition);
+                    // If can't build, decline to move on
+                    setTimeout(() => {
+                        if (this.gameState && this.gameState.turnPhase === 'action') {
+                            this.socket.emit('decline-property');
+                        }
+                    }, 1000);
                 }
             }
         }
@@ -205,7 +214,7 @@ export default class BotClient {
         const buildCost = sq.buildCost;
 
         if (totalH < 5 && me.money - buildCost > 300) {
-            if (totalH === 4) {
+            if (totalH === 3) {
                 this.socket.emit('build-hotel', { position });
             } else {
                 this.socket.emit('build-house', { position });

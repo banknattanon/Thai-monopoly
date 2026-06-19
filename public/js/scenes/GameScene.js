@@ -79,9 +79,9 @@ export default class GameScene extends Phaser.Scene {
             const owner = ownerId ? this.gameState.players.find(p => p.id === ownerId) : null;
 
             // Property state
-            const propState = this.gameState.properties[square.position];
+            const propState = this.gameState.board[square.position];
             const houses = propState ? propState.houses : 0;
-            const hasHotel = propState ? propState.hasHotel : false;
+            const hasHotel = propState ? propState.hotel : false;
             const isMortgaged = propState ? propState.isMortgaged : false;
 
             const isValid = this.propertyCard.updateData(

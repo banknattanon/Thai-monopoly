@@ -613,6 +613,12 @@ class RoomManager {
         const association = this.socketToPlayer.get(socket.id);
         const engine = room.gameEngine;
 
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId) {
+            socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
+
         const result = engine.buildHouse(association.playerId, position);
         if (result.success) {
             this.io.to(room.code).emit('house-built', {
@@ -636,6 +642,12 @@ class RoomManager {
         if (!room || room.status !== 'playing' || !room.gameEngine) return;
         const association = this.socketToPlayer.get(socket.id);
         const engine = room.gameEngine;
+
+        const currentPlayer = engine.getCurrentPlayer();
+        if (currentPlayer.id !== association.playerId) {
+            socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
 
         const result = engine.buildHotel(association.playerId, position);
         if (result.success) {
@@ -709,6 +721,10 @@ class RoomManager {
         const currentPlayer = engine.getCurrentPlayer();
         if (currentPlayer.id !== association.playerId) {
             socket.emit('error-msg', { message: 'Not your turn / ไม่ใช่เทิร์นของคุณ' });
+            return;
+        }
+        if (engine.turnPhase !== 'end') {
+            socket.emit('error-msg', { message: 'Cannot end turn now / ยังไม่สามารถจบเทิร์นได้' });
             return;
         }
 

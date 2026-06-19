@@ -147,9 +147,7 @@ class SocketManager {
         this.emit('decline-property');
     }
 
-    placeBid(amount) {
-        this.emit('place-bid', { amount });
-    }
+
 
     buildHouse(position) {
         this.emit('build-house', { position });
