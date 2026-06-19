@@ -192,10 +192,12 @@ export default class BotClient {
                     this.executeTurn();
                 } else if (this.gameState.turnPhase === 'end') {
                     // Before ending turn, check if money is negative and mortgage
-                    this.autoMortgage();
-                    setTimeout(() => {
-                        this.socket.emit('end-turn');
-                    }, 1000);
+                    const isSolvent = this.autoMortgage();
+                    if (isSolvent) {
+                        setTimeout(() => {
+                            this.socket.emit('end-turn');
+                        }, 1000);
+                    }
                 }
             }
         }, 1500);
@@ -223,9 +225,9 @@ export default class BotClient {
     }
 
     autoMortgage() {
-        if (!this.gameState) return;
+        if (!this.gameState) return true;
         const me = this.getMe();
-        if (!me || me.money >= 0) return;
+        if (!me || me.money >= 0) return true;
 
         // Money is negative, try to mortgage properties
         const myProperties = [];
@@ -245,7 +247,22 @@ export default class BotClient {
             if (me.money >= 0) break;
             this.socket.emit('mortgage-property', { position: pos });
             // Simulate adding money instantly so loop knows when to stop
-            me.money += Math.floor(this.gameState.board[pos].price / 2);
+            me.money += this.gameState.board[pos].mortgageValue || Math.floor(this.gameState.board[pos].price / 2);
         }
+
+        if (me.money < 0) {
+            // Still in debt! Declare bankruptcy
+            let creditorId = 'bank';
+            if (this.gameState.board[me.position] && this.gameState.board[me.position].type === 'property') {
+                const owner = this.gameState.propertyOwners[me.position];
+                if (owner && owner !== this.playerId) {
+                    creditorId = owner;
+                }
+            }
+            this.socket.emit('declare-bankruptcy', { targetId: creditorId });
+            return false;
+        }
+
+        return true;
     }
 }
