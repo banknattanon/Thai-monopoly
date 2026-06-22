@@ -119,7 +119,8 @@ body, html {
     width: 100%;
     height: 100%;
     padding: 24px;
-    overflow: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .screen.active {
@@ -130,7 +131,13 @@ body, html {
 }
 
 .landing-glass, .lobby-grid, .game-layout {
-    margin: auto 0;
+    margin: 24px 0;
+}
+
+@media (min-height: 700px) and (min-width: 1025px) {
+    .landing-glass, .lobby-grid, .game-layout {
+        margin: auto 0;
+    }
 }
 
 /* ==========================================
