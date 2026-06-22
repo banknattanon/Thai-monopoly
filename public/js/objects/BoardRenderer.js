@@ -16,6 +16,7 @@ export default class BoardRenderer {
         this.offsetY = y;
         this.propertyCard = propertyCard;
 
+        this.isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
         this.boardSize = BOARD_LAYOUT.BOARD_SIZE;
         this.squareContainers = []; // index -> Phaser.GameObjects.Container
 
@@ -145,7 +146,7 @@ export default class BoardRenderer {
             let iconX = 0;
             let iconY = 0;
             
-            let fontSize = isCorner ? '16px' : '15px';
+            let fontSize = isCorner ? (this.isTouchDevice ? '17px' : '16px') : (this.isTouchDevice ? '16px' : '15px');
             let wordWrapWidth = coords.width - 4;
 
             if (!isCorner) {
@@ -164,7 +165,7 @@ export default class BoardRenderer {
                     priceY = 15;
                     iconX = titleX;
                     iconY = 0;
-                    fontSize = '12px';
+                    fontSize = this.isTouchDevice ? '13px' : '12px';
                     wordWrapWidth = 90;
                 } else if (coords.rotation === 270) { // Right
                     titleX = (sq.type === 'property' ? 10 : 0);
@@ -173,7 +174,7 @@ export default class BoardRenderer {
                     priceY = 15;
                     iconX = titleX;
                     iconY = 0;
-                    fontSize = '12px';
+                    fontSize = this.isTouchDevice ? '13px' : '12px';
                     wordWrapWidth = 90;
                 }
             } else {
@@ -254,7 +255,7 @@ export default class BoardRenderer {
             );
 
             // Listeners
-            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+            const isTouchDevice = this.isTouchDevice;
 
             container.on('pointerover', (pointer) => {
                 if (isTouchDevice) return;
@@ -273,7 +274,11 @@ export default class BoardRenderer {
                 this.scene.events.emit('tile-out');
             });
 
-            container.on('pointerup', () => {
+            container.on('pointerup', (pointer) => {
+                if (pointer) {
+                    const dist = Phaser.Math.Distance.Between(pointer.downX, pointer.downY, pointer.upX, pointer.upY);
+                    if (dist > 10) return; // ignore swipe/drag pans
+                }
                 this.scene.events.emit('tile-click', { square: sq });
             });
 

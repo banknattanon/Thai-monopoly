@@ -155,12 +155,127 @@ export default class GameScene extends Phaser.Scene {
             this.events.emit('tile-selected-action', square);
         });
 
-        // Hide card if clicking anywhere else (e.g., background)
+        // Bind HTML zoom controls
+        const zoomIn = document.getElementById('btn-zoom-in');
+        const zoomOut = document.getElementById('btn-zoom-out');
+        const zoomReset = document.getElementById('btn-zoom-reset');
+
+        if (zoomIn) {
+            zoomIn.onclick = (e) => {
+                e.stopPropagation();
+                this.zoomCamera(0.2);
+            };
+        }
+        if (zoomOut) {
+            zoomOut.onclick = (e) => {
+                e.stopPropagation();
+                this.zoomCamera(-0.2);
+            };
+        }
+        if (zoomReset) {
+            zoomReset.onclick = (e) => {
+                e.stopPropagation();
+                this.resetCamera();
+            };
+        }
+
+        // Setup drag-to-pan & double-tap to zoom
+        let isDragging = false;
+        let lastTapTime = 0;
+
         this.input.on('pointerdown', (pointer, currentlyOver) => {
             if (currentlyOver.length === 0) {
                 this.propertyCard.hide();
             }
+
+            // Check for double tap/click
+            const currentTime = this.time.now;
+            const tapDelay = currentTime - lastTapTime;
+            
+            if (tapDelay < 350) { // Double tap detected
+                if (this.cameras.main.zoom > 1.0) {
+                    this.resetCamera();
+                } else {
+                    // Zoom in on tap location
+                    const targetZoom = 1.8;
+                    this.cameras.main.setZoom(targetZoom);
+                    // Shift camera scroll to focus on pointer coordinate
+                    this.cameras.main.scrollX = pointer.x - this.cameras.main.width / 2;
+                    this.cameras.main.scrollY = pointer.y - this.cameras.main.height / 2;
+                    this.clampCameraScroll();
+                }
+                lastTapTime = 0;
+            } else {
+                lastTapTime = currentTime;
+                if (this.cameras.main.zoom > 1.0) {
+                    isDragging = true;
+                }
+            }
         });
+
+        this.input.on('pointermove', (pointer) => {
+            if (isDragging && pointer.isDown && this.cameras.main.zoom > 1.0) {
+                const zoom = this.cameras.main.zoom;
+                this.cameras.main.scrollX -= (pointer.x - pointer.prevPosition.x) / zoom;
+                this.cameras.main.scrollY -= (pointer.y - pointer.prevPosition.y) / zoom;
+                this.clampCameraScroll();
+            } else {
+                isDragging = false;
+            }
+        });
+
+        this.input.on('pointerup', () => {
+            isDragging = false;
+        });
+    }
+
+    /**
+     * Zooms the main camera by a given delta, keeping it clamped between 1.0 and 3.0.
+     * @param {number} delta
+     */
+    zoomCamera(delta) {
+        const cam = this.cameras.main;
+        const oldZoom = cam.zoom;
+        const newZoom = Phaser.Math.Clamp(cam.zoom + delta, 1.0, 3.0);
+        
+        if (newZoom !== oldZoom) {
+            cam.setZoom(newZoom);
+            if (newZoom === 1.0) {
+                cam.scrollX = 0;
+                cam.scrollY = 0;
+            } else {
+                this.clampCameraScroll();
+            }
+        }
+    }
+
+    /**
+     * Resets camera zoom and scroll offsets.
+     */
+    resetCamera() {
+        const cam = this.cameras.main;
+        cam.setZoom(1.0);
+        cam.scrollX = 0;
+        cam.scrollY = 0;
+    }
+
+    /**
+     * Clamps camera scroll positions to ensure the board stays centered inside the viewport.
+     */
+    clampCameraScroll() {
+        const cam = this.cameras.main;
+        const zoom = cam.zoom;
+        if (zoom <= 1.0) {
+            cam.scrollX = 0;
+            cam.scrollY = 0;
+            return;
+        }
+
+        const maxScrollX = (cam.width - cam.width / zoom) / 2;
+        const maxScrollY = (cam.height - cam.height / zoom) / 2;
+
+        cam.scrollX = Phaser.Math.Clamp(cam.scrollX, -maxScrollX, maxScrollX);
+        cam.scrollY = Phaser.Math.Clamp(cam.scrollY, -maxScrollY, maxScrollY);
     }
 
     /**

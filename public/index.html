@@ -180,8 +180,14 @@
             <div class="game-layout">
                 <!-- Left side (Board + Action Bar) -->
                 <div class="game-board-side">
-                    <!-- Phaser Canvas Mount Point -->
-                    <div id="phaser-container" class="phaser-mount"></div>
+                    <div id="phaser-container" class="phaser-mount">
+                        <!-- Board Zoom Controls (Floating Overlay) -->
+                        <div class="board-zoom-controls">
+                            <button id="btn-zoom-in" class="btn-zoom" title="ซูมเข้า / Zoom In">➕</button>
+                            <button id="btn-zoom-out" class="btn-zoom" title="ซูมออก / Zoom Out">➖</button>
+                            <button id="btn-zoom-reset" class="btn-zoom" title="รีเซ็ต / Reset Zoom">🔄</button>
+                        </div>
+                    </div>
                     
                     <!-- Bottom Action Controls Overlay -->
                     <div id="hud-action-bar-container" class="hud-action-bar-container">
