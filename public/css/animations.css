@@ -215,3 +215,14 @@
 }
 .money-positive { color: #4ade80; }
 .money-negative { color: #ef4444; }
+
+/* ===== ACCESSIBILITY: Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+    .confetti-particle,
+    .money-fly-text,
+    .dice-container,
+    .token-move {
+        animation: none !important;
+        transition: none !important;
+    }
+}

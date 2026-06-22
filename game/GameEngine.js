@@ -596,7 +596,7 @@ class GameEngine {
             const randomDice = Math.floor(Math.random() * 6) + 1 + Math.floor(Math.random() * 6) + 1;
             const subLanding = this.resolveLanding(playerId, randomDice);
             if (subLanding) {
-                results.push({ type: 'landing', detail: subLanding });
+                results.push({ type: 'landing', playerId, detail: subLanding });
             }
         } else if (effect.action === 'move-back') {
             const oldPos = player.position;
@@ -607,7 +607,7 @@ class GameEngine {
 
             const subLanding = this.resolveLanding(playerId, 0);
             if (subLanding) {
-                results.push({ type: 'landing', detail: subLanding });
+                results.push({ type: 'landing', playerId, detail: subLanding });
             }
         } else if (effect.action === 'receive') {
             player.money += effect.amount;
@@ -694,43 +694,42 @@ class GameEngine {
         if (!player) return;
         player.isBankrupt = true;
 
-        if (creditorId) {
+        if (creditorId && creditorId !== 'bank') {
             const creditor = this.players.find(p => p.id === creditorId);
+            if (creditor) {
+                player.properties.forEach(pos => {
+                    const sq = this.board[pos];
+                    const houses = this.houses[pos] || 0;
+                    const hasHotel = this.hotels[pos];
+                    let refund = 0;
+                    if (hasHotel) {
+                        refund = (sq.buildCost * 5) / 2;
+                        this.hotels[pos] = false;
+                    } else if (houses > 0) {
+                        refund = (sq.buildCost * houses) / 2;
+                        this.houses[pos] = 0;
+                    }
+                    player.money += refund;
+                });
 
-            player.properties.forEach(pos => {
-                const sq = this.board[pos];
-                const houses = this.houses[pos] || 0;
-                const hasHotel = this.hotels[pos];
-                let refund = 0;
-                if (hasHotel) {
-                    refund = (sq.buildCost * 5) / 2;
-                    this.hotels[pos] = false;
-                } else if (houses > 0) {
-                    refund = (sq.buildCost * houses) / 2;
-                    this.houses[pos] = 0;
-                }
-                player.money += refund;
-            });
+                creditor.money += player.money;
+                player.money = 0;
 
-            creditor.money += player.money;
-            player.money = 0;
-
-            player.properties.forEach(pos => {
-                this.propertyOwners[pos] = creditorId;
-                creditor.properties.push(pos);
-            });
+                player.properties.forEach(pos => {
+                    this.propertyOwners[pos] = creditorId;
+                    creditor.properties.push(pos);
+                    const sq = this.board[pos];
+                    if (sq) sq.isMortgaged = false;
+                });
+            }
         } else {
+            // Bankrupt to bank
             player.properties.forEach(pos => {
+                this.propertyOwners[pos] = null;
+                this.houses[pos] = 0;
+                this.hotels[pos] = false;
                 const sq = this.board[pos];
-                const houses = this.houses[pos] || 0;
-                const hasHotel = this.hotels[pos];
-                if (hasHotel) {
-                    this.hotels[pos] = false;
-                } else if (houses > 0) {
-                    this.houses[pos] = 0;
-                }
-                delete this.propertyOwners[pos];
-                sq.isMortgaged = false;
+                if (sq) sq.isMortgaged = false;
             });
             player.money = 0;
         }
@@ -739,10 +738,19 @@ class GameEngine {
         player.getOutOfJailCards = 0;
     }
 
-    checkGameOver() {
+    checkGameOver(triggerContext = 'unknown') {
         const activePlayers = this.players.filter(p => !p.isBankrupt);
         if (activePlayers.length <= 1) {
-            return { isOver: true, winnerId: activePlayers[0] ? activePlayers[0].id : null, reason: 'bankrupt' };
+            const winnerId = activePlayers[0] ? activePlayers[0].id : null;
+            const winner = activePlayers[0];
+            console.log(`[GAME OVER] Reason: bankrupt | Winner: ${winner ? winner.name : 'none'} | Context: ${triggerContext}`);
+            return { isOver: true, winnerId, reason: 'bankrupt' };
+        }
+
+        // Skip special victory checks if triggered by bankruptcy
+        // (to prevent false wins from inherited properties)
+        if (triggerContext === 'bankruptcy') {
+            return { isOver: false };
         }
 
         // Color groups mapping
@@ -779,24 +787,30 @@ class GameEngine {
             // 1. Tourism Victory (all 4 stations)
             const hasAllTourism = tourismStations.every(pos => props.includes(pos));
             if (hasAllTourism) {
+                console.log(`[GAME OVER] Reason: tourism_victory | Winner: ${player.name} | Stations owned: ${tourismStations.filter(p => props.includes(p))} | Context: ${triggerContext}`);
                 return { isOver: true, winnerId: player.id, reason: 'tourism_victory' };
             }
 
             // 2. Triple Victory (3 color groups)
             let completedGroups = 0;
+            const completedGroupNames = [];
             for (const color in colorGroups) {
                 const group = colorGroups[color];
                 if (group.every(pos => props.includes(pos))) {
                     completedGroups++;
+                    completedGroupNames.push(color);
                 }
             }
             if (completedGroups >= 3) {
+                console.log(`[GAME OVER] Reason: triple_victory | Winner: ${player.name} | Groups: ${completedGroupNames.join(', ')} | Context: ${triggerContext}`);
                 return { isOver: true, winnerId: player.id, reason: 'triple_victory' };
             }
 
             // 3. Line Victory (all buyable properties on one side)
-            for (const line of buyableLines) {
+            for (let lineIdx = 0; lineIdx < buyableLines.length; lineIdx++) {
+                const line = buyableLines[lineIdx];
                 if (line.length > 0 && line.every(pos => props.includes(pos))) {
+                    console.log(`[GAME OVER] Reason: line_victory | Winner: ${player.name} | Line ${lineIdx + 1}: ${line.join(',')} | Total props: ${props.length} | Context: ${triggerContext}`);
                     return { isOver: true, winnerId: player.id, reason: 'line_victory' };
                 }
             }

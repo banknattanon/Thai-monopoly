@@ -209,7 +209,7 @@ class RoomManager {
         this.io.to(roomCode).emit('player-bankrupt', { playerId, reason: 'timeout' });
         this.io.to(roomCode).emit('game-state-sync', { gameState: room.gameEngine.getFullState() });
 
-        const gameOverResult = room.gameEngine.checkGameOver();
+        const gameOverResult = room.gameEngine.checkGameOver('bankruptcy');
         if (gameOverResult.isOver) {
             room.status = 'finished';
             this.io.to(roomCode).emit('game-over', { winnerId: gameOverResult.winnerId, stats: room.gameEngine.getStats() });
@@ -457,18 +457,14 @@ class RoomManager {
                 engine.declareBankruptcy(playerId, creditorId);
                 this.io.to(room.code).emit('player-bankrupt', { playerId, reason: 'debt' });
                 
-                const gameOverResult = engine.checkGameOver();
-                if (gameOverResult.isOver) {
-                    room.status = 'finished';
-                    this.io.to(room.code).emit('game-over', { winnerId: gameOverResult.winnerId, stats: engine.getStats(), reason: gameOverResult.reason });
-                }
+                this.checkVictory(room, 'bankruptcy');
             }
         }
     }
 
-    checkVictory(room) {
+    checkVictory(room, triggerContext = 'unknown') {
         const engine = room.gameEngine;
-        const gameOverResult = engine.checkGameOver();
+        const gameOverResult = engine.checkGameOver(triggerContext);
         if (gameOverResult.isOver) {
             room.status = 'finished';
             this.io.to(room.code).emit('game-over', { winnerId: gameOverResult.winnerId, stats: engine.getStats(), reason: gameOverResult.reason });
@@ -490,7 +486,7 @@ class RoomManager {
         engine.declareBankruptcy(playerId, targetId);
         this.io.to(room.code).emit('player-bankrupt', { playerId, reason: 'voluntary' });
         this.io.to(room.code).emit('game-state-sync', { gameState: engine.getFullState() });
-        this.checkVictory(room);
+        this.checkVictory(room, 'bankruptcy');
     }
 
     handleBuyProperty(socket, position) {

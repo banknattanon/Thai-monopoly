@@ -14,6 +14,24 @@ export default class PropertyCard {
         if (!this.element) {
             console.warn('PropertyCard: #hover-property-card element not found in DOM.');
         }
+        
+        // Mobile UI enhancements
+        this.isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        this.isCardVisible = false;
+        this.currentCardPosition = null;
+        this.backdropElement = null;
+
+        // On touch devices, close card if tapping outside both the card and the Phaser board
+        if (this.isTouchDevice) {
+            document.addEventListener('touchstart', (e) => {
+                const phaserContainer = document.getElementById('phaser-container');
+                if (this.isCardVisible && this.element && 
+                    !this.element.contains(e.target) && 
+                    (!phaserContainer || !phaserContainer.contains(e.target))) {
+                    this.hide();
+                }
+            }, { passive: true });
+        }
     }
 
     /**
@@ -182,6 +200,24 @@ export default class PropertyCard {
     show(x, y) {
         if (!this.element) return;
 
+        if (this.isTouchDevice) {
+            this.element.classList.add('mobile-card');
+            
+            // Create a transparent gray backdrop if not already present
+            if (!this.backdropElement) {
+                this.backdropElement = document.createElement('div');
+                this.backdropElement.className = 'property-card-backdrop';
+                document.body.appendChild(this.backdropElement);
+                this.backdropElement.addEventListener('touchstart', (e) => {
+                    this.hide();
+                }, { passive: true });
+            }
+            
+            this.element.style.display = 'block';
+            this.isCardVisible = true;
+            return;
+        }
+
         // Position and offset from cursor
         const offset = 15;
         let left = x + offset;
@@ -213,6 +249,26 @@ export default class PropertyCard {
     hide() {
         if (this.element) {
             this.element.style.display = 'none';
+            this.element.classList.remove('mobile-card');
+        }
+        if (this.backdropElement) {
+            this.backdropElement.remove();
+            this.backdropElement = null;
+        }
+        this.isCardVisible = false;
+        this.currentCardPosition = null;
+    }
+
+    /**
+     * Toggles visibility of the card for a specific position (used for touch devices).
+     * @param {number} position
+     */
+    toggleCard(position) {
+        if (this.isCardVisible && this.currentCardPosition === position) {
+            this.hide();
+        } else {
+            this.currentCardPosition = position;
+            this.show(0, 0);
         }
     }
 }

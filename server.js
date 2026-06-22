@@ -9,7 +9,10 @@ const io = new Server(server, {
     cors: {
         origin: '*',
         methods: ['GET', 'POST']
-    }
+    },
+    pingTimeout: 30000,
+    pingInterval: 15000,
+    perMessageDeflate: true
 });
 
 const roomManager = new RoomManager(io);

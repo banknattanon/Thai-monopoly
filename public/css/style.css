@@ -1760,3 +1760,267 @@ dialog.glass-dialog::backdrop {
     text-shadow: 0 0 10px rgba(234, 179, 8, 0.5);
     letter-spacing: 2px;
 }
+
+/* ===== MOBILE UI OVERHAUL ===== */
+
+/* Lobby inline-style replacement classes */
+.lobby-actions-column {
+    flex-direction: column;
+}
+.bot-controls-row {
+    gap: 8px;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+.flex-fill {
+    flex: 1;
+}
+.btn-bot-add {
+    padding: 12px 8px;
+    font-size: 0.9rem;
+}
+.lobby-ready-row {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+}
+
+/* Chat toggle button for mobile */
+.chat-toggle-btn {
+    display: none;
+    position: fixed;
+    bottom: 70px;
+    right: 12px;
+    z-index: 101;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(59, 130, 246, 0.9);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    align-items: center;
+    justify-content: center;
+}
+.chat-toggle-btn:active {
+    transform: scale(0.9);
+}
+
+/* Touch feedback for all interactive elements */
+.btn:active,
+.avatar-option:active {
+    transform: scale(0.95) !important;
+    opacity: 0.85;
+    transition: transform 0.1s ease, opacity 0.1s ease;
+}
+
+/* Remove hover effects on touch devices */
+@media (hover: none) and (pointer: coarse) {
+    .btn:hover {
+        transform: none;
+    }
+}
+
+/* prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ===== MOBILE BREAKPOINT: 768px ===== */
+@media (max-width: 768px) {
+    /* Monopoly card */
+    .monopoly-card {
+        width: 290px;
+        height: auto;
+        max-height: 85vh;
+        overflow-y: auto;
+    }
+
+    /* Toast notification */
+    .toast-notification {
+        max-width: calc(100vw - 32px);
+    }
+
+    /* Trade dialog collapse */
+    .trade-grid {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    /* Compact player HUD */
+    .hud-player-card {
+        padding: 8px 12px;
+        font-size: 0.85rem;
+    }
+
+    /* Game layout column */
+    .game-layout {
+        flex-direction: column;
+        height: auto;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .game-area {
+        width: 100%;
+        flex-shrink: 0;
+    }
+
+    .game-hud-side {
+        width: 100%;
+        max-height: none;
+        flex-direction: column;
+    }
+
+    /* Fixed bottom action bar */
+    .hud-action-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 100;
+        background: rgba(15, 23, 42, 0.95);
+        backdrop-filter: blur(12px);
+        padding: 8px 12px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: env(safe-area-inset-bottom, 8px);
+    }
+
+    /* Chat toggle visible */
+    .chat-toggle-btn {
+        display: flex;
+    }
+
+    /* Chat panel collapsible */
+    .chat-panel.chat-hidden {
+        display: none;
+    }
+
+    .chat-panel {
+        max-height: 250px;
+    }
+
+    /* Extra bottom padding for fixed bar */
+    .game-layout {
+        padding-bottom: 80px;
+    }
+
+    /* Turn banner compact */
+    .turn-banner-content {
+        padding: 16px 32px;
+        font-size: 0.95rem;
+    }
+
+    /* PropertyCard centered modal on mobile */
+    .hover-property-card.mobile-card {
+        position: fixed !important;
+        top: 50% !important;
+        left: 50% !important;
+        transform: translate(-50%, -50%) !important;
+        z-index: 10000 !important;
+        pointer-events: auto !important;
+        max-width: 90vw;
+    }
+
+    /* Card backdrop for mobile */
+    .property-card-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.5);
+        z-index: 9999;
+        backdrop-filter: blur(4px);
+    }
+}
+
+/* ===== MOBILE BREAKPOINT: 480px ===== */
+@media (max-width: 480px) {
+    /* Monopoly card smaller */
+    .monopoly-card {
+        width: 260px;
+        height: auto;
+        max-height: 85vh;
+    }
+
+    /* Toast full width */
+    .toast-notification {
+        width: calc(100vw - 32px);
+        max-width: 320px;
+        left: 50% !important;
+        transform: translateX(-50%);
+    }
+
+    /* Action buttons bigger for fingers */
+    .hud-action-bar .btn {
+        min-height: 48px;
+        font-size: 0.85rem;
+        padding: 12px 16px;
+    }
+
+    /* Dialog full width */
+    .dialog-content {
+        width: 95vw;
+        max-height: 90vh;
+        border-radius: 12px;
+    }
+
+    /* Turn banner compact */
+    .turn-banner-content {
+        padding: 12px 20px;
+        font-size: 0.85rem;
+    }
+
+    /* Lobby adjustments */
+    .lobby-grid {
+        padding: 12px;
+    }
+
+    /* Avatar grid smaller */
+    .avatar-option {
+        font-size: 1.5rem;
+        width: 48px;
+        height: 48px;
+    }
+}
+
+/* ===== LANDSCAPE SUPPORT ===== */
+@media (max-height: 500px) and (orientation: landscape) {
+    .game-layout {
+        flex-direction: row;
+        height: 100dvh;
+        overflow: hidden;
+    }
+
+    .game-area {
+        flex: 1;
+        height: 100%;
+    }
+
+    .game-hud-side {
+        width: 280px;
+        height: 100%;
+        overflow-y: auto;
+        flex-direction: column;
+    }
+
+    .hud-action-bar {
+        position: static;
+        padding-bottom: 8px;
+    }
+
+    .chat-toggle-btn {
+        bottom: 12px;
+    }
+}
+

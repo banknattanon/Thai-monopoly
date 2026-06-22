@@ -2,7 +2,10 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>เศรษฐี Online | Thai Monopoly Multiplayer</title>
     <meta name="description" content="เล่นเกมเศรษฐีออนไลน์กับเพื่อน 2-6 คนในรูปแบบเว็บบราวเซอร์">
     
@@ -148,22 +151,22 @@
                         </div>
                     </div>
                     
-                    <div class="lobby-actions" style="flex-direction: column;">
-                        <div class="bot-selector-container" style="gap: 8px; align-items: center; justify-content: center; width: 100%; display: none;" id="bot-controls">
-                            <select id="select-bot-personality" class="select-gold" style="flex: 1;">
+                    <div class="lobby-actions lobby-actions-column">
+                        <div class="bot-selector-container bot-controls-row" style="display: none;" id="bot-controls">
+                            <select id="select-bot-personality" class="select-gold flex-fill">
                                 <option value="normal">ทั่วไป / Normal</option>
                                 <option value="aggressive">ก้าวร้าว / Aggressive</option>
                                 <option value="conservative">ระมัดระวัง / Conservative</option>
                             </select>
-                            <button type="button" id="btn-add-bot" class="btn btn-secondary" style="flex: 1; padding: 12px 8px; font-size: 0.9rem;">
+                            <button type="button" id="btn-add-bot" class="btn btn-secondary flex-fill btn-bot-add">
                                 🤖 เพิ่มบอท
                             </button>
                         </div>
-                        <div style="display: flex; gap: 12px; width: 100%;">
-                            <button type="button" id="btn-ready" class="btn btn-secondary" style="flex: 1;">
+                        <div class="lobby-ready-row">
+                            <button type="button" id="btn-ready" class="btn btn-secondary flex-fill">
                                 เตรียมพร้อม / Ready
                             </button>
-                            <button type="button" id="btn-start-game" class="btn btn-primary btn-glow-gold" style="flex: 1;" disabled>
+                            <button type="button" id="btn-start-game" class="btn btn-primary btn-glow-gold flex-fill" disabled>
                                 เริ่มเกม / Start Game
                             </button>
                         </div>
@@ -305,7 +308,8 @@
                     </div>
                 </div>
                 
-
+                <!-- Floating Chat Toggle Button for Mobile -->
+                <button id="chat-toggle-btn" class="chat-toggle-btn" type="button">💬</button>
             </div>
         </section>
         

@@ -371,3 +371,29 @@
     background-color: var(--color-gold);
     animation: float 2.5s ease-in-out infinite alternate;
 }
+
+/* ===== MOBILE BOARD TEXT READABILITY ===== */
+@media (max-width: 768px) {
+    .tile-name {
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .tile-price {
+        font-size: 0.6rem;
+        font-weight: 600;
+    }
+}
+
+@media (max-width: 480px) {
+    .tile-name {
+        font-size: 0.75rem;
+        font-weight: 700;
+    }
+    .tile-price {
+        font-size: 0.65rem;
+        font-weight: 600;
+    }
+    .deck-slot .deck-label {
+        font-size: 0.6rem;
+    }
+}

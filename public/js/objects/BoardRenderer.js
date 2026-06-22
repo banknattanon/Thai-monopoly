@@ -254,16 +254,21 @@ export default class BoardRenderer {
             );
 
             // Listeners
+            const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
             container.on('pointerover', (pointer) => {
+                if (isTouchDevice) return;
                 this.highlightSquare(index, 0xd4af37); // Gold hover outline
                 this.scene.events.emit('tile-hover', { square: sq, pointer: pointer });
             });
 
             container.on('pointermove', (pointer) => {
+                if (isTouchDevice) return;
                 this.scene.events.emit('tile-hover-move', { pointer: pointer });
             });
 
             container.on('pointerout', () => {
+                if (isTouchDevice) return;
                 this.clearHighlight(index);
                 this.scene.events.emit('tile-out');
             });
@@ -280,16 +285,18 @@ export default class BoardRenderer {
      * Draws owner dot indicator in the player's color index.
      * @param {number} position
      * @param {string} playerColorHex
+     * @param {boolean} isMortgaged
      */
-    updateOwner(position, playerColorHex) {
+    updateOwner(position, playerColorHex, isMortgaged = false) {
         const container = this.squareContainers[position];
         if (!container) return;
 
         const g = container.ownerGraphics;
         g.clear();
 
+        const coords = getSquareCoords(position);
+
         if (playerColorHex) {
-            const coords = getSquareCoords(position);
             const color = Phaser.Display.Color.HexStringToColor(playerColorHex).color;
             
             // Draw a thick colored inner border for the property to show ownership clearly
@@ -299,6 +306,23 @@ export default class BoardRenderer {
             // Optionally add a slight transparent fill
             g.fillStyle(color, 0.15);
             g.fillRect(-coords.width / 2, -coords.height / 2, coords.width, coords.height);
+        }
+
+        if (isMortgaged) {
+            // Draw a dark semi-transparent overlay
+            g.fillStyle(0x000000, 0.6);
+            g.fillRect(-coords.width / 2, -coords.height / 2, coords.width, coords.height);
+            
+            // Draw an X or a red line to indicate mortgage
+            g.lineStyle(4, 0xff0000, 0.8);
+            g.beginPath();
+            g.moveTo(-coords.width / 2 + 10, -coords.height / 2 + 10);
+            g.lineTo(coords.width / 2 - 10, coords.height / 2 - 10);
+            g.strokePath();
+            g.beginPath();
+            g.moveTo(coords.width / 2 - 10, -coords.height / 2 + 10);
+            g.lineTo(-coords.width / 2 + 10, coords.height / 2 - 10);
+            g.strokePath();
         }
     }
 

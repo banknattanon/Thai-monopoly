@@ -72,7 +72,10 @@ export default class GameScene extends Phaser.Scene {
      * Binds hover popup and click actions on the BoardRenderer.
      */
     setupBoardInteractionListeners() {
+        const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+
         this.events.on('tile-hover', ({ square, pointer }) => {
+            if (isTouchDevice) return; // Touch devices use click/tap instead of hover
             if (!pointer) return;
             // Find current owner data if any
             const ownerId = this.gameState.propertyOwners[square.position];
@@ -108,6 +111,7 @@ export default class GameScene extends Phaser.Scene {
         });
 
         this.events.on('tile-hover-move', ({ pointer }) => {
+            if (isTouchDevice) return; // Touch devices use click/tap instead of hover
             if (!pointer || !this.currentSquareIsValid) return;
             const canvas = this.sys.game.canvas;
             const rect = canvas.getBoundingClientRect();
@@ -117,10 +121,36 @@ export default class GameScene extends Phaser.Scene {
         });
 
         this.events.on('tile-out', () => {
+            if (isTouchDevice) return; // Touch devices use click/tap instead of hover
             this.propertyCard.hide();
         });
 
         this.events.on('tile-click', ({ square }) => {
+            if (isTouchDevice) {
+                // Toggle PropertyCard centered modal on mobile tap
+                const ownerId = this.gameState.propertyOwners[square.position];
+                const owner = ownerId ? this.gameState.players.find(p => p.id === ownerId) : null;
+                const propState = this.gameState.board[square.position];
+                const houses = propState ? propState.houses : 0;
+                const hasHotel = propState ? propState.hotel : false;
+                const isMortgaged = propState ? propState.isMortgaged : false;
+
+                const isValid = this.propertyCard.updateData(
+                    square,
+                    owner ? owner.name : null,
+                    owner ? owner.color.hex : null,
+                    houses,
+                    hasHotel,
+                    isMortgaged
+                );
+                
+                if (isValid) {
+                    this.propertyCard.toggleCard(square.position);
+                } else {
+                    this.propertyCard.hide();
+                }
+            }
+
             // Hook up build / mortgage / trade selections if appropriate
             this.events.emit('tile-selected-action', square);
         });
@@ -513,14 +543,16 @@ export default class GameScene extends Phaser.Scene {
             const owner = ownerId ? this.gameState.players.find(p => p.id === ownerId) : null;
 
             // Draw owner indicators on board
+            const propState = this.gameState.board[i];
+            const isMortgaged = propState ? propState.isMortgaged : false;
+            
             if (owner) {
-                this.boardRenderer.updateOwner(i, owner.color.hex);
+                this.boardRenderer.updateOwner(i, owner.color.hex, isMortgaged);
             } else {
-                this.boardRenderer.updateOwner(i, null);
+                this.boardRenderer.updateOwner(i, null, false);
             }
 
             // Sync houses/hotels
-            const propState = this.gameState.board[i];
             const houses = propState ? propState.houses : 0;
             const hasHotel = propState ? propState.hotel : false;
             this.boardRenderer.updateBuildings(i, houses, hasHotel);

@@ -69,6 +69,18 @@ class ChatManager {
             });
         }
 
+        // Mobile chat toggle
+        const chatToggleBtn = document.getElementById('chat-toggle-btn');
+        const chatPanel = document.getElementById('chat-panel');
+        if (chatToggleBtn && chatPanel) {
+            if (window.innerWidth <= 768) {
+                chatPanel.classList.add('chat-hidden');
+            }
+            chatToggleBtn.addEventListener('click', () => {
+                chatPanel.classList.toggle('chat-hidden');
+            });
+        }
+
         this.isInitialized = true;
     }
 
