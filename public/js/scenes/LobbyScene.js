@@ -308,7 +308,8 @@ export default class LobbyScene extends Phaser.Scene {
             const isPlayerHost = p.id === p.hostId || (p.isHost); // check host flag or hostId comparison
 
             const card = document.createElement('div');
-            card.className = `lobby-player-card ${isPlayerHost ? 'item-host' : ''}`;
+            const isReady = p.ready || isPlayerHost;
+            card.className = `lobby-player-card ${isPlayerHost ? 'item-host' : ''} ${isReady ? 'is-ready' : 'is-waiting'}`;
 
             const avatarEl = document.createElement('div');
             avatarEl.className = 'player-avatar';
